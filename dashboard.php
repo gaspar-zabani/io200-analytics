@@ -73,6 +73,24 @@ if (!array_key_exists($period, $allowedPeriods)) {
     $period = '30';
 }
 
+$allowedSorts = [
+    'views' => 'Visningar',
+    'sessions' => 'Sessioner',
+    'basket' => 'Basket',
+    'downloads' => 'Downloads'
+];
+
+$sort = $_GET['sort'] ?? 'views';
+$direction = $_GET['direction'] ?? 'desc';
+
+if (!array_key_exists($sort, $allowedSorts)) {
+    $sort = 'views';
+}
+
+if (!in_array($direction, ['asc', 'desc'], true)) {
+    $direction = 'desc';
+}
+
 $whereDate = '';
 
 if ($period !== 'all') {
@@ -316,18 +334,45 @@ try {
         }
     }
 
-    // Sort top photos by views first, then basket, then downloads
-    usort($photoStats, function ($a, $b) {
+    // Latest available image URL from any event type
+    $result = $mysqli->query("
+        SELECT
+            e.photo_id,
+            e.image_url
+        FROM ioa_events AS e
+        INNER JOIN (
+            SELECT
+                photo_id,
+                MAX(id) AS event_id
+            FROM ioa_events
+            WHERE photo_id IS NOT NULL
+              AND image_url IS NOT NULL
+              AND image_url <> ''
+              {$whereDate}
+            GROUP BY photo_id
+        ) AS latest_image
+            ON latest_image.event_id = e.id
+    ");
 
-        if ($a['views'] !== $b['views']) {
-            return $b['views'] <=> $a['views'];
+    while ($row = $result->fetch_assoc()) {
+
+        $photoId = (string)$row['photo_id'];
+
+        if (isset($photoStats[$photoId])) {
+            $photoStats[$photoId]['image_url'] = $row['image_url'];
+        }
+    }
+
+    // Sort top photos by the selected metric
+    usort($photoStats, function ($a, $b) use ($sort, $direction) {
+
+        if ($a[$sort] !== $b[$sort]) {
+            return $direction === 'asc'
+                ? $a[$sort] <=> $b[$sort]
+                : $b[$sort] <=> $a[$sort];
         }
 
-        if ($a['basket'] !== $b['basket']) {
-            return $b['basket'] <=> $a['basket'];
-        }
-
-        return $b['downloads'] <=> $a['downloads'];
+        return (int)$a['photo_id'] <=> (int)$b['photo_id'];
     });
 
     $topPhotos = array_slice($photoStats, 0, 20);
@@ -522,6 +567,16 @@ try {
             font-weight: 600;
         }
 
+        .sort-link {
+            color: inherit;
+            text-decoration: none;
+        }
+
+        .sort-link:hover {
+            color: #202124;
+            text-decoration: underline;
+        }
+
         tr:last-child td {
             border-bottom: 0;
         }
@@ -639,7 +694,11 @@ try {
 
                 <a
                     class="filter <?= $period === $value ? 'active' : '' ?>"
-                    href="?period=<?= h($value) ?>"
+                    href="?<?= h(http_build_query([
+                        'period' => $value,
+                        'sort' => $sort,
+                        'direction' => $direction
+                    ])) ?>"
                 >
                     <?= h($label) ?>
                 </a>
@@ -728,10 +787,36 @@ try {
 
                     <tr>
                         <th>Bild</th>
-                        <th>Visningar</th>
-                        <th>Sessioner</th>
-                        <th>Basket</th>
-                        <th>Downloads</th>
+
+                        <?php foreach ($allowedSorts as $sortValue => $sortLabel): ?>
+
+                            <?php
+
+                            $nextDirection =
+                                $sort === $sortValue && $direction === 'desc'
+                                    ? 'asc'
+                                    : 'desc';
+
+                            $sortIndicator = $sort === $sortValue
+                                ? ($direction === 'asc' ? ' ↑' : ' ↓')
+                                : '';
+
+                            ?>
+
+                            <th>
+                                <a
+                                    class="sort-link"
+                                    href="?<?= h(http_build_query([
+                                        'period' => $period,
+                                        'sort' => $sortValue,
+                                        'direction' => $nextDirection
+                                    ])) ?>"
+                                >
+                                    <?= h($sortLabel . $sortIndicator) ?>
+                                </a>
+                            </th>
+
+                        <?php endforeach; ?>
                     </tr>
 
                 </thead>
