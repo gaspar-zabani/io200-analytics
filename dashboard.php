@@ -1,0 +1,854 @@
+<?php
+
+require_once __DIR__ . '/../../system/config.php';
+require_once __DIR__ . '/../../../admin/sys/Autoload.php';
+
+header('Cache-Control: no-store, no-cache, must-revalidate');
+header('Pragma: no-cache');
+
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+
+// --------------------------------------------------
+// IO200 admin authentication
+// --------------------------------------------------
+
+$AuthenticationService = new AuthenticationService(
+    CMS_SECRETKEY,
+    CMS_SECRETKEY,
+    'HS256',
+    dirname(__DIR__, 3)
+);
+
+$refreshToken = $_COOKIE['refreshtoken'] ?? null;
+
+if (!$refreshToken) {
+    http_response_code(403);
+    die('IO200 Analytics: authentication required.');
+}
+
+$tokenData = $AuthenticationService->readUserToken($refreshToken);
+
+if (
+    ErrorInfo::isError($tokenData) ||
+    !is_array($tokenData) ||
+    ($tokenData['type'] ?? null) !== 'refresh' ||
+    empty($tokenData['mail'])
+) {
+    http_response_code(403);
+    die('IO200 Analytics: authentication required.');
+}
+
+// --------------------------------------------------
+// Helpers
+// --------------------------------------------------
+
+function h($value)
+{
+    return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
+}
+
+function percent($part, $total)
+{
+    if ($total <= 0) {
+        return 0;
+    }
+
+    return round(($part / $total) * 100, 1);
+}
+
+// --------------------------------------------------
+// Period filter
+// --------------------------------------------------
+
+$period = $_GET['period'] ?? '30';
+
+$allowedPeriods = [
+    '7'   => '7 dagar',
+    '30'  => '30 dagar',
+    '90'  => '90 dagar',
+    'all' => 'All tid'
+];
+
+if (!array_key_exists($period, $allowedPeriods)) {
+    $period = '30';
+}
+
+$whereDate = '';
+
+if ($period !== 'all') {
+    $days = (int)$period;
+
+    $whereDate = "
+        AND created_at >= DATE_SUB(NOW(), INTERVAL {$days} DAY)
+    ";
+}
+
+// --------------------------------------------------
+// Database
+// --------------------------------------------------
+
+try {
+
+    $mysqli = new mysqli(
+        CMS_DB_HOSTNAME,
+        CMS_DB_USERNAME,
+        CMS_DB_PASSWORD,
+        CMS_DB_DATABASE
+    );
+
+    $mysqli->set_charset('utf8mb4');
+
+    function getSingleValue(mysqli $db, string $sql): int
+    {
+        $result = $db->query($sql);
+        $row = $result->fetch_row();
+
+        return (int)($row[0] ?? 0);
+    }
+
+    // --------------------------------------------------
+    // Totals
+    // --------------------------------------------------
+
+    $photoViews = getSingleValue(
+        $mysqli,
+        "
+        SELECT COUNT(*)
+        FROM ioa_events
+        WHERE event_type = 'photo_view'
+        {$whereDate}
+        "
+    );
+
+    $sessions = getSingleValue(
+        $mysqli,
+        "
+        SELECT COUNT(DISTINCT session_id)
+        FROM ioa_events
+        WHERE session_id IS NOT NULL
+          AND session_id <> ''
+          {$whereDate}
+        "
+    );
+
+    $basketAdds = getSingleValue(
+        $mysqli,
+        "
+        SELECT COUNT(*)
+        FROM ioa_events
+        WHERE event_type = 'basket_add'
+        {$whereDate}
+        "
+    );
+
+    $singleDownloads = getSingleValue(
+        $mysqli,
+        "
+        SELECT COUNT(*)
+        FROM ioa_events
+        WHERE event_type = 'photo_download'
+        {$whereDate}
+        "
+    );
+
+    // --------------------------------------------------
+    // Batch downloads
+    // --------------------------------------------------
+
+    $batchResult = $mysqli->query("
+        SELECT batch_data
+        FROM ioa_events
+        WHERE event_type = 'batch_download'
+          AND batch_data IS NOT NULL
+          {$whereDate}
+    ");
+
+    $batchDownloads = 0;
+
+    while ($row = $batchResult->fetch_assoc()) {
+
+        $batch = json_decode($row['batch_data'], true);
+
+        if (
+            is_array($batch) &&
+            isset($batch['photo_ids']) &&
+            is_array($batch['photo_ids'])
+        ) {
+            $batchDownloads += count($batch['photo_ids']);
+        }
+    }
+
+    $downloads = $singleDownloads + $batchDownloads;
+
+    // --------------------------------------------------
+    // Build per-photo stats
+    // --------------------------------------------------
+
+    $photoStats = [];
+
+    // Views
+    $result = $mysqli->query("
+        SELECT
+            photo_id,
+            COUNT(*) AS views,
+            COUNT(DISTINCT session_id) AS sessions,
+            MAX(image_url) AS image_url
+        FROM ioa_events
+        WHERE event_type = 'photo_view'
+          AND photo_id IS NOT NULL
+          {$whereDate}
+        GROUP BY photo_id
+    ");
+
+    while ($row = $result->fetch_assoc()) {
+
+        $photoId = (string)$row['photo_id'];
+
+        $photoStats[$photoId] = [
+            'photo_id' => $photoId,
+            'views' => (int)$row['views'],
+            'sessions' => (int)$row['sessions'],
+            'basket' => 0,
+            'downloads' => 0,
+            'image_url' => $row['image_url']
+        ];
+    }
+
+    // Basket adds
+    $result = $mysqli->query("
+        SELECT
+            photo_id,
+            COUNT(*) AS basket_count
+        FROM ioa_events
+        WHERE event_type = 'basket_add'
+          AND photo_id IS NOT NULL
+          {$whereDate}
+        GROUP BY photo_id
+    ");
+
+    while ($row = $result->fetch_assoc()) {
+
+        $photoId = (string)$row['photo_id'];
+
+        if (!isset($photoStats[$photoId])) {
+            $photoStats[$photoId] = [
+                'photo_id' => $photoId,
+                'views' => 0,
+                'sessions' => 0,
+                'basket' => 0,
+                'downloads' => 0,
+                'image_url' => null
+            ];
+        }
+
+        $photoStats[$photoId]['basket'] =
+            (int)$row['basket_count'];
+    }
+
+    // Single downloads
+    $result = $mysqli->query("
+        SELECT
+            photo_id,
+            COUNT(*) AS download_count
+        FROM ioa_events
+        WHERE event_type = 'photo_download'
+          AND photo_id IS NOT NULL
+          {$whereDate}
+        GROUP BY photo_id
+    ");
+
+    while ($row = $result->fetch_assoc()) {
+
+        $photoId = (string)$row['photo_id'];
+
+        if (!isset($photoStats[$photoId])) {
+            $photoStats[$photoId] = [
+                'photo_id' => $photoId,
+                'views' => 0,
+                'sessions' => 0,
+                'basket' => 0,
+                'downloads' => 0,
+                'image_url' => null
+            ];
+        }
+
+        $photoStats[$photoId]['downloads'] +=
+            (int)$row['download_count'];
+    }
+
+    // Batch downloads per photo
+    $result = $mysqli->query("
+        SELECT batch_data
+        FROM ioa_events
+        WHERE event_type = 'batch_download'
+          AND batch_data IS NOT NULL
+          {$whereDate}
+    ");
+
+    while ($row = $result->fetch_assoc()) {
+
+        $batch = json_decode($row['batch_data'], true);
+
+        if (
+            !is_array($batch) ||
+            empty($batch['photo_ids']) ||
+            !is_array($batch['photo_ids'])
+        ) {
+            continue;
+        }
+
+        foreach ($batch['photo_ids'] as $photoId) {
+
+            $photoId = (string)$photoId;
+
+            if (!isset($photoStats[$photoId])) {
+                $photoStats[$photoId] = [
+                    'photo_id' => $photoId,
+                    'views' => 0,
+                    'sessions' => 0,
+                    'basket' => 0,
+                    'downloads' => 0,
+                    'image_url' => null
+                ];
+            }
+
+            $photoStats[$photoId]['downloads']++;
+        }
+    }
+
+    // Sort top photos by views first, then basket, then downloads
+    usort($photoStats, function ($a, $b) {
+
+        if ($a['views'] !== $b['views']) {
+            return $b['views'] <=> $a['views'];
+        }
+
+        if ($a['basket'] !== $b['basket']) {
+            return $b['basket'] <=> $a['basket'];
+        }
+
+        return $b['downloads'] <=> $a['downloads'];
+    });
+
+    $topPhotos = array_slice($photoStats, 0, 20);
+
+    $mysqli->close();
+
+} catch (Throwable $e) {
+
+    error_log(
+        '[IO200 Analytics] Dashboard error: ' .
+        $e->getMessage()
+    );
+
+    http_response_code(500);
+
+    die('IO200 Analytics: could not load dashboard.');
+}
+
+?>
+<!doctype html>
+<html lang="sv">
+
+<head>
+
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <title>IO200 Analytics</title>
+
+    <style>
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 38px 20px;
+
+            background: #f4f5f7;
+            color: #202124;
+
+            font-family:
+                -apple-system,
+                BlinkMacSystemFont,
+                "Segoe UI",
+                Roboto,
+                Arial,
+                sans-serif;
+        }
+
+        .dashboard {
+            max-width: 1180px;
+            margin: 0 auto;
+        }
+
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            gap: 20px;
+
+            margin-bottom: 28px;
+        }
+
+        h1 {
+            margin: 0 0 7px;
+
+            font-size: 34px;
+        }
+
+        .subtitle {
+            margin: 0;
+
+            color: #6e7177;
+        }
+
+        .filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 7px;
+        }
+
+        .filter {
+            padding: 8px 12px;
+
+            border-radius: 8px;
+
+            background: white;
+            color: #555;
+
+            text-decoration: none;
+
+            border: 1px solid #dedfe2;
+
+            font-size: 14px;
+        }
+
+        .filter.active {
+            background: #202124;
+            color: white;
+
+            border-color: #202124;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+
+            gap: 16px;
+
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            padding: 22px;
+
+            background: white;
+
+            border-radius: 12px;
+
+            box-shadow:
+                0 2px 8px rgba(0, 0, 0, .06);
+        }
+
+        .stat-value {
+            display: block;
+
+            margin-bottom: 5px;
+
+            font-size: 32px;
+            font-weight: 750;
+        }
+
+        .stat-label {
+            color: #73767b;
+
+            font-size: 14px;
+        }
+
+        .panel {
+            padding: 24px;
+
+            background: white;
+
+            border-radius: 12px;
+
+            box-shadow:
+                0 2px 8px rgba(0, 0, 0, .06);
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+
+            gap: 15px;
+
+            margin-bottom: 18px;
+        }
+
+        .panel-header h2 {
+            margin: 0;
+        }
+
+        .panel-hint {
+            color: #8a8d92;
+
+            font-size: 13px;
+        }
+
+        table {
+            width: 100%;
+
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            padding: 13px 10px;
+
+            border-bottom: 1px solid #eeeeef;
+
+            text-align: left;
+            vertical-align: middle;
+        }
+
+        th {
+            color: #777a80;
+
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        tr:last-child td {
+            border-bottom: 0;
+        }
+
+        .photo {
+            display: flex;
+            align-items: center;
+
+            gap: 13px;
+        }
+
+        .thumbnail-link {
+            display: block;
+
+            flex: 0 0 auto;
+        }
+
+        .thumbnail {
+            display: block;
+
+            width: 96px;
+            height: 68px;
+
+            object-fit: cover;
+
+            background: #eee;
+
+            border-radius: 7px;
+        }
+
+        .photo-id {
+            font-weight: 700;
+        }
+
+        .muted {
+            margin-top: 3px;
+
+            color: #85888d;
+
+            font-size: 12px;
+        }
+
+        .number {
+            font-size: 16px;
+            font-weight: 650;
+        }
+
+        .rate {
+            margin-top: 3px;
+
+            color: #8a8d92;
+
+            font-size: 12px;
+        }
+
+        .empty {
+            padding: 30px 10px;
+
+            color: #777;
+            text-align: center;
+        }
+
+        @media (max-width: 850px) {
+
+            .stats {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .topbar {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+        }
+
+        @media (max-width: 650px) {
+
+            body {
+                padding: 24px 12px;
+            }
+
+            .panel {
+                overflow-x: auto;
+            }
+
+            table {
+                min-width: 760px;
+            }
+
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+<div class="dashboard">
+
+    <div class="topbar">
+
+        <div>
+
+            <h1>IO200 Analytics</h1>
+
+            <p class="subtitle">
+                Vilka bilder fångar faktiskt publikens intresse? 📷
+            </p>
+
+        </div>
+
+        <div class="filters">
+
+            <?php foreach ($allowedPeriods as $value => $label): ?>
+
+                <a
+                    class="filter <?= $period === $value ? 'active' : '' ?>"
+                    href="?period=<?= h($value) ?>"
+                >
+                    <?= h($label) ?>
+                </a>
+
+            <?php endforeach; ?>
+
+        </div>
+
+    </div>
+
+    <div class="stats">
+
+        <div class="stat-card">
+
+            <span class="stat-value">
+                <?= number_format($photoViews, 0, ',', ' ') ?>
+            </span>
+
+            <span class="stat-label">
+                Bildvisningar
+            </span>
+
+        </div>
+
+        <div class="stat-card">
+
+            <span class="stat-value">
+                <?= number_format($sessions, 0, ',', ' ') ?>
+            </span>
+
+            <span class="stat-label">
+                Sessioner
+            </span>
+
+        </div>
+
+        <div class="stat-card">
+
+            <span class="stat-value">
+                <?= number_format($basketAdds, 0, ',', ' ') ?>
+            </span>
+
+            <span class="stat-label">
+                Tillagda i basket
+            </span>
+
+        </div>
+
+        <div class="stat-card">
+
+            <span class="stat-value">
+                <?= number_format($downloads, 0, ',', ' ') ?>
+            </span>
+
+            <span class="stat-label">
+                Nedladdade bilder
+            </span>
+
+        </div>
+
+    </div>
+
+    <div class="panel">
+
+        <div class="panel-header">
+
+            <h2>Mest visade bilder</h2>
+
+            <span class="panel-hint">
+                Topp 20 · <?= h($allowedPeriods[$period]) ?>
+            </span>
+
+        </div>
+
+        <?php if (count($topPhotos) === 0): ?>
+
+            <div class="empty">
+                Ingen statistik ännu.
+            </div>
+
+        <?php else: ?>
+
+            <table>
+
+                <thead>
+
+                    <tr>
+                        <th>Bild</th>
+                        <th>Visningar</th>
+                        <th>Sessioner</th>
+                        <th>Basket</th>
+                        <th>Downloads</th>
+                    </tr>
+
+                </thead>
+
+                <tbody>
+
+                <?php foreach ($topPhotos as $photo): ?>
+
+                    <?php
+
+                    $basketRate = percent(
+                        $photo['basket'],
+                        $photo['views']
+                    );
+
+                    $downloadRate = percent(
+                        $photo['downloads'],
+                        $photo['views']
+                    );
+
+                    ?>
+
+                    <tr>
+
+                        <td>
+
+                            <div class="photo">
+
+                                <?php if (!empty($photo['image_url'])): ?>
+
+                                    <a
+                                        class="thumbnail-link"
+                                        href="<?= h($photo['image_url']) ?>"
+                                        target="_blank"
+                                        rel="noopener"
+                                    >
+
+                                        <img
+                                            class="thumbnail"
+                                            src="<?= h($photo['image_url']) ?>"
+                                            alt=""
+                                            loading="lazy"
+                                        >
+
+                                    </a>
+
+                                <?php endif; ?>
+
+                                <div>
+
+                                    <div class="photo-id">
+                                        Photo <?= h($photo['photo_id']) ?>
+                                    </div>
+
+                                    <div class="muted">
+                                        IO200 photo ID
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                        </td>
+
+                        <td>
+
+                            <div class="number">
+                                <?= (int)$photo['views'] ?>
+                            </div>
+
+                        </td>
+
+                        <td>
+
+                            <div class="number">
+                                <?= (int)$photo['sessions'] ?>
+                            </div>
+
+                        </td>
+
+                        <td>
+
+                            <div class="number">
+                                <?= (int)$photo['basket'] ?>
+                            </div>
+
+                            <div class="rate">
+                                <?= h($basketRate) ?> % av views
+                            </div>
+
+                        </td>
+
+                        <td>
+
+                            <div class="number">
+                                <?= (int)$photo['downloads'] ?>
+                            </div>
+
+                            <div class="rate">
+                                <?= h($downloadRate) ?> % av views
+                            </div>
+
+                        </td>
+
+                    </tr>
+
+                <?php endforeach; ?>
+
+                </tbody>
+
+            </table>
+
+        <?php endif; ?>
+
+    </div>
+
+</div>
+
+</body>
+</html>
