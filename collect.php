@@ -3,6 +3,7 @@
 header('Content-Type: application/json; charset=utf-8');
 
 require_once __DIR__ . '/../../system/config.php';
+require_once __DIR__ . '/../../../admin/sys/Autoload.php';
 
 function respond($statusCode, $payload) {
     http_response_code($statusCode);
@@ -140,6 +141,41 @@ if ($type === 'batch_download') {
     ]);
 }
 
+$isAdmin = 0;
+
+try {
+
+    $AuthenticationService = new AuthenticationService(
+        CMS_SECRETKEY,
+        CMS_SECRETKEY,
+        'HS256',
+        dirname(__DIR__, 3)
+    );
+
+    $refreshToken = $_COOKIE['refreshtoken'] ?? null;
+
+    if ($refreshToken) {
+
+        $tokenData = $AuthenticationService->readUserToken($refreshToken);
+
+        if (
+            !ErrorInfo::isError($tokenData) &&
+            is_array($tokenData) &&
+            ($tokenData['type'] ?? null) === 'refresh' &&
+            !empty($tokenData['mail'])
+        ) {
+            $isAdmin = 1;
+        }
+    }
+
+} catch (Throwable $e) {
+
+    error_log(
+        '[IO200 Analytics] Collector authentication check failed: ' .
+        $e->getMessage()
+    );
+}
+
 try {
 
     mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
@@ -162,20 +198,22 @@ try {
             image_url,
             download_url,
             batch_data,
-            session_id
+            session_id,
+            is_admin
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ");
 
     $stmt->bind_param(
-        'ssissss',
+        'ssissssi',
         $type,
         $page,
         $photoId,
         $imageUrl,
         $downloadUrl,
         $batchData,
-        $sessionId
+        $sessionId,
+        $isAdmin
     );
 
     $stmt->execute();

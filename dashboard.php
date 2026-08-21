@@ -91,6 +91,12 @@ if (!in_array($direction, ['asc', 'desc'], true)) {
     $direction = 'desc';
 }
 
+$includeAdmin = ($_GET['include_admin'] ?? '') === '1';
+
+$whereAdmin = $includeAdmin
+    ? ''
+    : 'AND is_admin = 0';
+
 $whereDate = '';
 
 if ($period !== 'all') {
@@ -134,6 +140,7 @@ try {
         SELECT COUNT(*)
         FROM ioa_events
         WHERE event_type = 'photo_view'
+        {$whereAdmin}
         {$whereDate}
         "
     );
@@ -145,6 +152,7 @@ try {
         FROM ioa_events
         WHERE session_id IS NOT NULL
           AND session_id <> ''
+          {$whereAdmin}
           {$whereDate}
         "
     );
@@ -155,6 +163,7 @@ try {
         SELECT COUNT(*)
         FROM ioa_events
         WHERE event_type = 'basket_add'
+        {$whereAdmin}
         {$whereDate}
         "
     );
@@ -165,6 +174,7 @@ try {
         SELECT COUNT(*)
         FROM ioa_events
         WHERE event_type = 'photo_download'
+        {$whereAdmin}
         {$whereDate}
         "
     );
@@ -178,6 +188,7 @@ try {
         FROM ioa_events
         WHERE event_type = 'batch_download'
           AND batch_data IS NOT NULL
+          {$whereAdmin}
           {$whereDate}
     ");
 
@@ -214,6 +225,7 @@ try {
         FROM ioa_events
         WHERE event_type = 'photo_view'
           AND photo_id IS NOT NULL
+          {$whereAdmin}
           {$whereDate}
         GROUP BY photo_id
     ");
@@ -240,6 +252,7 @@ try {
         FROM ioa_events
         WHERE event_type = 'basket_add'
           AND photo_id IS NOT NULL
+          {$whereAdmin}
           {$whereDate}
         GROUP BY photo_id
     ");
@@ -271,6 +284,7 @@ try {
         FROM ioa_events
         WHERE event_type = 'photo_download'
           AND photo_id IS NOT NULL
+          {$whereAdmin}
           {$whereDate}
         GROUP BY photo_id
     ");
@@ -300,6 +314,7 @@ try {
         FROM ioa_events
         WHERE event_type = 'batch_download'
           AND batch_data IS NOT NULL
+          {$whereAdmin}
           {$whereDate}
     ");
 
@@ -348,6 +363,7 @@ try {
             WHERE photo_id IS NOT NULL
               AND image_url IS NOT NULL
               AND image_url <> ''
+              {$whereAdmin}
               {$whereDate}
             GROUP BY photo_id
         ) AS latest_image
@@ -697,13 +713,29 @@ try {
                     href="?<?= h(http_build_query([
                         'period' => $value,
                         'sort' => $sort,
-                        'direction' => $direction
+                        'direction' => $direction,
+                        'include_admin' => $includeAdmin ? '1' : '0'
                     ])) ?>"
                 >
                     <?= h($label) ?>
                 </a>
 
             <?php endforeach; ?>
+
+            <a
+                class="filter <?= $includeAdmin ? 'active' : '' ?>"
+                href="?<?= h(http_build_query([
+                    'period' => $period,
+                    'sort' => $sort,
+                    'direction' => $direction,
+                    'include_admin' => $includeAdmin ? '0' : '1'
+                ])) ?>"
+            >
+                <?= $includeAdmin
+                    ? 'Admintrafik inkluderad'
+                    : 'Inkludera admintrafik'
+                ?>
+            </a>
 
         </div>
 
@@ -809,7 +841,8 @@ try {
                                     href="?<?= h(http_build_query([
                                         'period' => $period,
                                         'sort' => $sortValue,
-                                        'direction' => $nextDirection
+                                        'direction' => $nextDirection,
+                                        'include_admin' => $includeAdmin ? '1' : '0'
                                     ])) ?>"
                                 >
                                     <?= h($sortLabel . $sortIndicator) ?>

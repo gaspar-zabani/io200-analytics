@@ -78,6 +78,7 @@ if (empty($_SESSION['ioa_installer_csrf'])) {
 // --------------------------------------------------
 
 $tableExists = false;
+$adminColumnExists = false;
 $dbConnected = false;
 $installedNow = false;
 $error = null;
@@ -102,6 +103,14 @@ if ($authenticated) {
         ");
 
         $tableExists = $result->num_rows > 0;
+
+        if ($tableExists) {
+            $result = $mysqli->query("
+                SHOW COLUMNS FROM `ioa_events` LIKE 'is_admin'
+            ");
+
+            $adminColumnExists = $result->num_rows > 0;
+        }
 
         // --------------------------------------------------
         // Installation POST
@@ -131,6 +140,7 @@ if ($authenticated) {
                         `download_url` TEXT DEFAULT NULL,
                         `batch_data` JSON DEFAULT NULL,
                         `session_id` VARCHAR(64) DEFAULT NULL,
+                        `is_admin` TINYINT(1) NOT NULL DEFAULT 0,
 
                         PRIMARY KEY (`id`),
 
@@ -145,6 +155,18 @@ if ($authenticated) {
                 ");
 
                 $tableExists = true;
+                $adminColumnExists = true;
+                $installedNow = true;
+
+            } elseif (!$adminColumnExists) {
+
+                $mysqli->query("
+                    ALTER TABLE `ioa_events`
+                    ADD COLUMN `is_admin` TINYINT(1) NOT NULL DEFAULT 0
+                    AFTER `session_id`
+                ");
+
+                $adminColumnExists = true;
                 $installedNow = true;
             }
         }
@@ -633,9 +655,24 @@ if ($authenticated) {
 
                         </div>
 
+                        <div class="status-row <?= $adminColumnExists ? 'ok' : 'waiting' ?>">
+
+                            <span class="status-icon">
+                                <?= $adminColumnExists ? '✓' : '○' ?>
+                            </span>
+
+                            <span>
+                                <?= $adminColumnExists
+                                    ? 'Admintrafik kan identifieras'
+                                    : 'Analytics-tabellen behöver uppdateras'
+                                ?>
+                            </span>
+
+                        </div>
+
                     </div>
 
-                    <?php if (!$tableExists): ?>
+                    <?php if (!$tableExists || !$adminColumnExists): ?>
 
                         <form method="post">
 
@@ -649,7 +686,10 @@ if ($authenticated) {
                                 class="button"
                                 type="submit"
                             >
-                                Installera IO200 Analytics
+                                <?= $tableExists
+                                    ? 'Uppdatera IO200 Analytics'
+                                    : 'Installera IO200 Analytics'
+                                ?>
                             </button>
 
                         </form>
