@@ -1,26 +1,25 @@
 # Roadmap
 
-The items below are planned ideas, not current features. They are not commitments to a particular order or release.
+IO200 Analytics 1.0.0 provides the current collection, dashboard, visit, installation, and safe data-removal baseline. The items below are possible post-1.0 work, not release commitments.
+
+## Photo and album insights
+
+- Add richer album/collection-level analytics if IO200 exposes a stable and safe way to resolve its metadata.
+- Resolve human-readable photo titles or filenames instead of relying primarily on numeric photo IDs and stored URLs.
 
 ## Traffic quality and privacy
 
-- Improve self/admin traffic handling beyond the current browser-local, client-supplied exclusion flag.
-- Add privacy controls for what is collected and retention controls for expiration or deletion of analytics events.
+- Replace or supplement the client-supplied `is_admin` flag with supported automatic Admin-traffic classification if IO200 exposes a reliable server-side signal.
+- Add configurable retention or cleanup controls for analytics events.
+- Evaluate privacy controls appropriate to different site deployments.
 
-## Photo and collection insights
+## Visits and measurement periods
 
-- Show the latest viewed photo.
-- Resolve and display a human-readable photo title or filename instead of only the numeric IO200 photo ID.
-- Add album and collection-level statistics.
-- Highlight activity that is new since the administrator's last visit.
+- Add further session/visit analysis only where it remains useful without implying unique people or exact visit duration.
+- Explore an explicit measurement-period/reset or “trip meter” concept that preserves historical data while allowing administrators to establish a new reporting baseline.
 
-## Dashboard experience
+## IO200 integration and maintenance
 
-- Improve the unauthenticated dashboard experience, for example by guiding users back through IO200 Admin login instead of returning only an error response.
-- Add localization instead of keeping interface text fixed in Swedish.
-
-## Maintenance and integration
-
-- Define explicit versioning and an update/release strategy.
-- Introduce database migrations and schema version tracking beyond the installer's current one-off column check.
-- Explore integration into IO200 Admin rather than exposing only standalone installer and dashboard pages.
+- Explore integration into IO200 Admin if IO200 provides a supported extension, listener, or UI-hook mechanism.
+- Introduce explicit schema migration/version tracking if future releases add more database changes or IOA-owned tables.
+- Consider localization if the dashboard needs languages beyond its current Swedish interface.

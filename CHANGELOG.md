@@ -1,31 +1,37 @@
 # Changelog
 
-This summary follows the milestones recorded in Git history. The project does not currently publish numbered releases.
+## 1.0.0 - 2026-08-24
 
-## Unreleased
+Initial release of IO200 Analytics.
 
-### Browser-based analytics exclusion
+### Analytics collection
 
-- Added a dashboard control that stores an exclusion preference in `localStorage`.
-- Added the stored flag to browser events and persisted it as `is_admin`.
-- Removed collector-side IO200 authentication detection, making exclusion explicitly browser-controlled.
-- Dashboard results continue to exclude flagged traffic by default and can include it on demand.
+- Added browser-side tracking for lightbox photo views, basket additions/removals, single-photo downloads, and completed album/batch downloads.
+- Added per-browser-tab random session IDs using `sessionStorage` and collection of the current page path as event context.
+- Added a validated JSON collector with an event allowlist, payload limits, prepared database inserts, and generic client-facing error responses.
+- Added counting of individual photos contained in batch downloads.
+- Added the client-supplied `is_admin` event field and default dashboard exclusion of flagged events while retaining the underlying filtering capability.
 
-## 2026-08-21 - Admin traffic filtering
+### Dashboard
 
-- Added the `is_admin` event field and database column, including an installer upgrade path.
-- Excluded flagged admin traffic from dashboard queries by default.
-- Added a dashboard option to include admin traffic.
+- Added IO200 Admin-authenticated KPI reporting for photo views, distinct sessions, basket additions, and downloaded photos.
+- Added consistent filtering for today, rolling 7-, 30-, and 90-day periods, and all time.
+- Added a unified, responsive, keyboard-accessible tab interface for recent views, most-viewed photos, most-downloaded photos, and visits.
+- Added 20-item recent/ranking lists with thumbnails, photo IDs, supporting metrics, sortable most-viewed columns, and basket/download percentages.
+- Added readable album/page breadcrumbs derived from stored `page_path` values.
+- Added visit analytics based on existing non-empty `session_id` values, including period totals and the 20 most recent visits with activity timestamps, event counts, downloads, basket additions, and compact page-context lists.
+- Added a polished login-required dashboard state linking to IO200 Admin and allowing a manual retry after login.
+- Consolidated dashboard presentation into reusable KPI, panel, photo-item, metadata, and metric patterns.
 
-## 2026-08-20 - Sortable dashboard and thumbnails
+### Installation and removal
 
-- Added sortable per-photo columns with ascending and descending order.
-- Improved thumbnail selection and presentation in the top-photo table.
+- Added an IO200 Admin-authenticated, CSRF-protected installer for creating `ioa_events` and upgrading older installations with the `is_admin` column.
+- Added matching login-required presentation to the installer and uninstaller.
+- Added a conservative uninstall workflow with separate keep-data and permanent-delete paths.
+- Restricted permanent deletion to the explicitly owned `ioa_events` table and protected it with Admin authentication, CSRF validation, a fixed action, and typed `DELETE` confirmation.
+- Kept Code Injection cleanup and deletion of `/storage/custom/io200-analytics/` as explicit manual steps.
 
-## 2026-08-20 - Initial working prototype
+### Release documentation
 
-- Added browser tracking for photo views, basket changes, and single/batch downloads.
-- Added validated event collection and storage in `ioa_events`.
-- Added the authenticated installer and initial schema.
-- Added the authenticated dashboard with date filters, totals, and top-photo statistics.
+- Updated installation, authentication, event, dashboard, visit, privacy, limitation, and uninstallation documentation for IO200 Analytics 1.0.0.
 
