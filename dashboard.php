@@ -128,7 +128,7 @@ if (!in_array($direction, ['asc', 'desc'], true)) {
     $direction = 'desc';
 }
 
-$allowedPhotoTabs = ['latest', 'views', 'downloads'];
+$allowedPhotoTabs = ['latest', 'views', 'downloads', 'visits'];
 $photoTab = $_GET['photo_tab'] ?? 'latest';
 
 if (!in_array($photoTab, $allowedPhotoTabs, true)) {
@@ -201,6 +201,27 @@ try {
         "
     );
 
+    $result = $mysqli->query("
+        SELECT
+            COUNT(DISTINCT session_id) AS visits,
+            SUM(event_type = 'photo_view') AS photo_views,
+            SUM(event_type = 'basket_add') AS basket_adds,
+            SUM(event_type = 'photo_download') AS single_downloads
+        FROM ioa_events
+        WHERE session_id IS NOT NULL
+          AND session_id <> ''
+          {$whereAdmin}
+          {$whereDate}
+    ");
+
+    $visitSummaryRow = $result->fetch_assoc();
+    $visitSummary = [
+        'visits' => (int)($visitSummaryRow['visits'] ?? 0),
+        'photo_views' => (int)($visitSummaryRow['photo_views'] ?? 0),
+        'basket_adds' => (int)($visitSummaryRow['basket_adds'] ?? 0),
+        'downloads' => (int)($visitSummaryRow['single_downloads'] ?? 0)
+    ];
+
     $basketAdds = getSingleValue(
         $mysqli,
         "
@@ -228,7 +249,7 @@ try {
     // --------------------------------------------------
 
     $batchResult = $mysqli->query("
-        SELECT batch_data
+        SELECT session_id, batch_data
         FROM ioa_events
         WHERE event_type = 'batch_download'
           AND batch_data IS NOT NULL
@@ -237,6 +258,7 @@ try {
     ");
 
     $batchDownloads = 0;
+    $visitBatchDownloads = 0;
 
     while ($row = $batchResult->fetch_assoc()) {
 
@@ -247,11 +269,113 @@ try {
             isset($batch['photo_ids']) &&
             is_array($batch['photo_ids'])
         ) {
-            $batchDownloads += count($batch['photo_ids']);
+            $batchPhotoCount = count($batch['photo_ids']);
+            $batchDownloads += $batchPhotoCount;
+
+            if (is_string($row['session_id']) && $row['session_id'] !== '') {
+                $visitBatchDownloads += $batchPhotoCount;
+            }
         }
     }
 
     $downloads = $singleDownloads + $batchDownloads;
+    $visitSummary['downloads'] += $visitBatchDownloads;
+
+    // --------------------------------------------------
+    // Recent visits (existing session_id values)
+    // --------------------------------------------------
+
+    $recentVisits = [];
+
+    $result = $mysqli->query("
+        SELECT
+            session_id,
+            MIN(created_at) AS first_activity,
+            MAX(created_at) AS latest_activity,
+            MAX(id) AS latest_event_id,
+            SUM(event_type = 'photo_view') AS photo_views,
+            SUM(event_type = 'basket_add') AS basket_adds,
+            SUM(event_type = 'photo_download') AS single_downloads
+        FROM ioa_events
+        WHERE session_id IS NOT NULL
+          AND session_id <> ''
+          {$whereAdmin}
+          {$whereDate}
+        GROUP BY session_id
+        ORDER BY latest_activity DESC, latest_event_id DESC
+        LIMIT 20
+    ");
+
+    while ($row = $result->fetch_assoc()) {
+        $sessionId = (string)$row['session_id'];
+
+        $recentVisits[$sessionId] = [
+            'session_id' => $sessionId,
+            'first_activity' => $row['first_activity'],
+            'latest_activity' => $row['latest_activity'],
+            'photo_views' => (int)$row['photo_views'],
+            'basket_adds' => (int)$row['basket_adds'],
+            'downloads' => (int)$row['single_downloads'],
+            'page_paths' => []
+        ];
+    }
+
+    if ($recentVisits) {
+        $escapedSessionIds = array_map(
+            static function ($sessionId) use ($mysqli) {
+                return "'" . $mysqli->real_escape_string($sessionId) . "'";
+            },
+            array_keys($recentVisits)
+        );
+
+        $result = $mysqli->query("
+            SELECT
+                session_id,
+                event_type,
+                page_path,
+                batch_data
+            FROM ioa_events
+            WHERE session_id IN (" . implode(', ', $escapedSessionIds) . ")
+              {$whereAdmin}
+              {$whereDate}
+        ");
+
+        while ($row = $result->fetch_assoc()) {
+            $sessionId = (string)$row['session_id'];
+
+            if (!isset($recentVisits[$sessionId])) {
+                continue;
+            }
+
+            if (is_string($row['page_path']) && trim($row['page_path']) !== '') {
+                $pagePath = trim($row['page_path']);
+                $pageContext = readablePagePath($pagePath);
+
+                if ($pageContext !== null) {
+                    $recentVisits[$sessionId]['page_paths'][$pagePath] = $pageContext;
+                }
+            }
+
+            if ($row['event_type'] === 'batch_download' && $row['batch_data'] !== null) {
+                $batch = json_decode($row['batch_data'], true);
+
+                if (
+                    is_array($batch) &&
+                    isset($batch['photo_ids']) &&
+                    is_array($batch['photo_ids'])
+                ) {
+                    $recentVisits[$sessionId]['downloads'] += count($batch['photo_ids']);
+                }
+            }
+        }
+    }
+
+    foreach ($recentVisits as &$visit) {
+        $visit['page_contexts'] = array_values($visit['page_paths']);
+        $visit['page_context_count'] = count($visit['page_paths']);
+        unset($visit['page_paths']);
+    }
+    unset($visit);
 
     // --------------------------------------------------
     // Latest viewed photo
@@ -738,7 +862,7 @@ try {
             z-index: 1;
 
             display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
+            grid-template-columns: repeat(4, minmax(0, 1fr));
             align-items: stretch;
             gap: 10px;
         }
@@ -887,6 +1011,71 @@ try {
             border-top: 1px solid #f0f0f1;
         }
 
+        .visit-preview {
+            display: grid;
+            gap: 5px;
+        }
+
+        .visit-list {
+            display: grid;
+        }
+
+        .visit-item {
+            padding: 10px 0;
+        }
+
+        .visit-item:first-child {
+            padding-top: 0;
+        }
+
+        .visit-item:last-child {
+            padding-bottom: 0;
+        }
+
+        .visit-item + .visit-item {
+            border-top: 1px solid #f0f0f1;
+        }
+
+        .visit-item__facts {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 10px 18px;
+        }
+
+        .visit-fact {
+            display: grid;
+            gap: 3px;
+        }
+
+        .visit-fact__label {
+            color: #85888d;
+
+            font-size: 12px;
+        }
+
+        .visit-fact__value {
+            font-size: 14px;
+            font-weight: 650;
+        }
+
+        .visit-item__contexts {
+            margin-top: 7px;
+        }
+
+        .visit-context-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 3px 14px;
+
+            margin-top: 4px;
+        }
+
+        .visit-context-list span {
+            color: #5f6368;
+
+            font-size: 12px;
+        }
+
         .thumbnail-link {
             display: block;
 
@@ -1006,6 +1195,10 @@ try {
                 border-radius: 12px;
             }
 
+            .visit-item__facts {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
         }
 
         @media (max-width: 650px) {
@@ -1020,6 +1213,11 @@ try {
 
             .photo-tab .photo-item__meta--truncate {
                 max-width: 62vw;
+            }
+
+            .visit-item__facts {
+                grid-template-columns: 1fr;
+                gap: 8px;
             }
 
             table {
@@ -1276,6 +1474,44 @@ try {
                             <div class="photo-item__id">
                                 Photo <?= h($mostDownloadedPhoto['photo_id']) ?>
                             </div>
+                        </div>
+                    </div>
+                <?php else: ?>
+                    <div class="photo-item__meta">Ingen data för valt filter.</div>
+                <?php endif; ?>
+            </a>
+
+            <a
+                class="dashboard-card photo-tab"
+                id="photo-tab-visits"
+                href="?<?= h(http_build_query([
+                    'period' => $period,
+                    'sort' => $sort,
+                    'direction' => $direction,
+                    'include_admin' => $includeAdmin ? '1' : '0',
+                    'photo_tab' => 'visits'
+                ])) ?>"
+                role="tab"
+                aria-selected="<?= $photoTab === 'visits' ? 'true' : 'false' ?>"
+                aria-controls="photo-panel-visits"
+                tabindex="<?= $photoTab === 'visits' ? '0' : '-1' ?>"
+                data-photo-tab="visits"
+            >
+                <h2 class="photo-tab__title">Besök</h2>
+
+                <?php if ($visitSummary['visits'] > 0): ?>
+                    <div class="visit-preview">
+                        <div class="photo-item__id">
+                            <?= number_format($visitSummary['visits'], 0, ',', ' ') ?> besök
+                        </div>
+                        <div class="photo-item__meta">
+                            <?= number_format($visitSummary['photo_views'], 0, ',', ' ') ?> bildvisningar
+                            &middot;
+                            <?= number_format($visitSummary['downloads'], 0, ',', ' ') ?> nedladdningar
+                            <?php if ($visitSummary['basket_adds'] > 0): ?>
+                                &middot;
+                                <?= number_format($visitSummary['basket_adds'], 0, ',', ' ') ?> i basket
+                            <?php endif; ?>
                         </div>
                     </div>
                 <?php else: ?>
@@ -1628,6 +1864,133 @@ try {
                             <?php endforeach; ?>
                             </tbody>
                         </table>
+                    </div>
+                <?php endif; ?>
+            </div>
+
+            <div
+                class="photo-tabs__panel"
+                id="photo-panel-visits"
+                role="tabpanel"
+                aria-labelledby="photo-tab-visits"
+                tabindex="0"
+                <?= $photoTab === 'visits' ? '' : 'hidden' ?>
+                data-photo-panel="visits"
+            >
+                <div class="panel-header">
+                    <h2>Senaste besöken</h2>
+                    <span class="panel-hint">
+                        Senaste 20 · <?= h($allowedPeriods[$period]) ?>
+                    </span>
+                </div>
+
+                <?php if (count($recentVisits) === 0): ?>
+                    <div class="empty">
+                        Inga besök för valt filter.
+                    </div>
+                <?php else: ?>
+                    <div class="visit-list">
+                        <?php foreach ($recentVisits as $visit): ?>
+                            <?php
+                            $visibleContexts = array_slice(
+                                $visit['page_contexts'],
+                                0,
+                                3
+                            );
+                            $additionalContexts =
+                                $visit['page_context_count'] - count($visibleContexts);
+                            ?>
+
+                            <article class="visit-item">
+                                <div class="visit-item__facts">
+                                    <div class="visit-fact">
+                                        <span class="visit-fact__label">
+                                            Första aktivitet
+                                        </span>
+                                        <time
+                                            class="visit-fact__value"
+                                            datetime="<?= h($visit['first_activity']) ?>"
+                                        >
+                                            <?= h($visit['first_activity']) ?>
+                                        </time>
+                                    </div>
+
+                                    <div class="visit-fact">
+                                        <span class="visit-fact__label">
+                                            Senaste aktivitet
+                                        </span>
+                                        <time
+                                            class="visit-fact__value"
+                                            datetime="<?= h($visit['latest_activity']) ?>"
+                                        >
+                                            <?= h($visit['latest_activity']) ?>
+                                        </time>
+                                    </div>
+
+                                    <div class="visit-fact">
+                                        <span class="visit-fact__label">
+                                            Bildvisningar
+                                        </span>
+                                        <span class="visit-fact__value">
+                                            <?= (int)$visit['photo_views'] ?>
+                                        </span>
+                                    </div>
+
+                                    <div class="visit-fact">
+                                        <span class="visit-fact__label">
+                                            Album/sidor
+                                        </span>
+                                        <span class="visit-fact__value">
+                                            <?= (int)$visit['page_context_count'] ?>
+                                        </span>
+                                    </div>
+
+                                    <?php if ($visit['basket_adds'] > 0): ?>
+                                        <div class="visit-fact">
+                                            <span class="visit-fact__label">
+                                                Basket
+                                            </span>
+                                            <span class="visit-fact__value">
+                                                <?= (int)$visit['basket_adds'] ?>
+                                            </span>
+                                        </div>
+                                    <?php endif; ?>
+
+                                    <?php if ($visit['downloads'] > 0): ?>
+                                        <div class="visit-fact">
+                                            <span class="visit-fact__label">
+                                                Nedladdningar
+                                            </span>
+                                            <span class="visit-fact__value">
+                                                <?= (int)$visit['downloads'] ?>
+                                            </span>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+
+                                <div class="visit-item__contexts">
+                                    <div class="visit-fact__label">
+                                        Album/sidor
+                                    </div>
+
+                                    <?php if ($visibleContexts): ?>
+                                        <div class="visit-context-list">
+                                            <?php foreach ($visibleContexts as $context): ?>
+                                                <span><?= h($context) ?></span>
+                                            <?php endforeach; ?>
+
+                                            <?php if ($additionalContexts > 0): ?>
+                                                <span>
+                                                    +<?= (int)$additionalContexts ?> fler
+                                                </span>
+                                            <?php endif; ?>
+                                        </div>
+                                    <?php else: ?>
+                                        <div class="photo-item__meta">&ndash;</div>
+                                    <?php endif; ?>
+                                </div>
+                            </article>
+                        <?php endforeach; ?>
                     </div>
                 <?php endif; ?>
             </div>
