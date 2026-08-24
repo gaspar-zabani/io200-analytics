@@ -56,6 +56,43 @@ function percent($part, $total)
     return round(($part / $total) * 100, 1);
 }
 
+function readablePagePath($pagePath)
+{
+    if (!is_string($pagePath) || trim($pagePath) === '') {
+        return null;
+    }
+
+    $path = parse_url(trim($pagePath), PHP_URL_PATH);
+
+    if (!is_string($path)) {
+        return null;
+    }
+
+    $segments = array_values(array_filter(
+        explode('/', trim($path, '/')),
+        static function ($segment) {
+            return $segment !== '';
+        }
+    ));
+
+    if (!$segments) {
+        return null;
+    }
+
+    $labels = array_map(static function ($segment) {
+        $segment = rawurldecode($segment);
+        $segment = trim(str_replace(['-', '_'], ' ', $segment));
+
+        if (preg_match('/^[a-z]+\d+[a-z\d]*$/i', $segment)) {
+            return strtoupper($segment);
+        }
+
+        return ucfirst($segment);
+    }, $segments);
+
+    return implode(' → ', $labels);
+}
+
 // --------------------------------------------------
 // Period filter
 // --------------------------------------------------
@@ -219,6 +256,7 @@ try {
         SELECT
             photo_id,
             image_url,
+            page_path,
             created_at
         FROM ioa_events
         WHERE event_type = 'photo_view'
@@ -229,6 +267,14 @@ try {
     ");
 
     $latestViewedPhoto = $result->fetch_assoc();
+
+    if ($latestViewedPhoto) {
+        // No stable album lookup is available here, so retain the event's own
+        // context and turn its path into a human-readable breadcrumb.
+        $latestViewedPhoto['page_context'] = readablePagePath(
+            $latestViewedPhoto['page_path'] ?? null
+        );
+    }
 
     if (
         $latestViewedPhoto &&
@@ -944,6 +990,14 @@ try {
                     >
                         <?= h($latestViewedPhoto['created_at']) ?>
                     </time>
+
+                    <div class="muted">
+                        Album/sida:
+                        <?= $latestViewedPhoto['page_context'] !== null
+                            ? h($latestViewedPhoto['page_context'])
+                            : '&ndash;'
+                        ?>
+                    </div>
 
                 </div>
 
