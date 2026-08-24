@@ -210,6 +210,53 @@ try {
     $downloads = $singleDownloads + $batchDownloads;
 
     // --------------------------------------------------
+    // Latest viewed photo
+    // --------------------------------------------------
+
+    $latestViewedPhoto = null;
+
+    $result = $mysqli->query("
+        SELECT
+            photo_id,
+            image_url,
+            created_at
+        FROM ioa_events
+        WHERE event_type = 'photo_view'
+          {$whereAdmin}
+          {$whereDate}
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+    ");
+
+    $latestViewedPhoto = $result->fetch_assoc();
+
+    if (
+        $latestViewedPhoto &&
+        empty($latestViewedPhoto['image_url']) &&
+        !empty($latestViewedPhoto['photo_id'])
+    ) {
+        $photoId = (int)$latestViewedPhoto['photo_id'];
+
+        $result = $mysqli->query("
+            SELECT image_url
+            FROM ioa_events
+            WHERE photo_id = {$photoId}
+              AND image_url IS NOT NULL
+              AND image_url <> ''
+              {$whereAdmin}
+              {$whereDate}
+            ORDER BY created_at DESC, id DESC
+            LIMIT 1
+        ");
+
+        $imageRow = $result->fetch_assoc();
+
+        if ($imageRow) {
+            $latestViewedPhoto['image_url'] = $imageRow['image_url'];
+        }
+    }
+
+    // --------------------------------------------------
     // Build per-photo stats
     // --------------------------------------------------
 
@@ -555,6 +602,21 @@ try {
                 0 2px 8px rgba(0, 0, 0, .06);
         }
 
+        .latest-viewed-panel {
+            margin-bottom: 30px;
+        }
+
+        .latest-viewed {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .latest-viewed-details {
+            display: grid;
+            gap: 5px;
+        }
+
         .panel-header {
             display: flex;
             justify-content: space-between;
@@ -822,6 +884,72 @@ try {
             </span>
 
         </div>
+
+    </div>
+
+    <div class="panel latest-viewed-panel">
+
+        <div class="panel-header">
+
+            <h2>Senast visade bild</h2>
+
+            <span class="panel-hint">
+                <?= h($allowedPeriods[$period]) ?>
+            </span>
+
+        </div>
+
+        <?php if (!$latestViewedPhoto): ?>
+
+            <div class="empty">
+                Inga bildvisningar f&ouml;r valt filter.
+            </div>
+
+        <?php else: ?>
+
+            <div class="latest-viewed">
+
+                <?php if (!empty($latestViewedPhoto['image_url'])): ?>
+
+                    <a
+                        class="thumbnail-link"
+                        href="<?= h($latestViewedPhoto['image_url']) ?>"
+                        target="_blank"
+                        rel="noopener"
+                    >
+
+                        <img
+                            class="thumbnail"
+                            src="<?= h($latestViewedPhoto['image_url']) ?>"
+                            alt=""
+                            loading="lazy"
+                        >
+
+                    </a>
+
+                <?php endif; ?>
+
+                <div class="latest-viewed-details">
+
+                    <div class="photo-id">
+                        Photo <?= $latestViewedPhoto['photo_id'] !== null
+                            ? h($latestViewedPhoto['photo_id'])
+                            : '&ndash;'
+                        ?>
+                    </div>
+
+                    <time
+                        class="muted"
+                        datetime="<?= h($latestViewedPhoto['created_at']) ?>"
+                    >
+                        <?= h($latestViewedPhoto['created_at']) ?>
+                    </time>
+
+                </div>
+
+            </div>
+
+        <?php endif; ?>
 
     </div>
 
