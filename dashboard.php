@@ -128,6 +128,13 @@ if (!in_array($direction, ['asc', 'desc'], true)) {
     $direction = 'desc';
 }
 
+$allowedPhotoTabs = ['latest', 'views', 'downloads'];
+$photoTab = $_GET['photo_tab'] ?? 'latest';
+
+if (!in_array($photoTab, $allowedPhotoTabs, true)) {
+    $photoTab = 'latest';
+}
+
 $includeAdmin = ($_GET['include_admin'] ?? '') === '1';
 
 $whereAdmin = $includeAdmin
@@ -520,7 +527,40 @@ try {
         }
     }
 
-    // Sort top photos by the selected metric
+    // Build fixed rankings for tab previews and the downloads tab.
+    $photosByViews = array_values(array_filter(
+        $photoStats,
+        static function ($photo) {
+            return $photo['views'] > 0;
+        }
+    ));
+    usort($photosByViews, function ($a, $b) {
+        if ($a['views'] !== $b['views']) {
+            return $b['views'] <=> $a['views'];
+        }
+
+        return (int)$a['photo_id'] <=> (int)$b['photo_id'];
+    });
+
+    $photosByDownloads = array_values(array_filter(
+        $photoStats,
+        static function ($photo) {
+            return $photo['downloads'] > 0;
+        }
+    ));
+    usort($photosByDownloads, function ($a, $b) {
+        if ($a['downloads'] !== $b['downloads']) {
+            return $b['downloads'] <=> $a['downloads'];
+        }
+
+        return (int)$a['photo_id'] <=> (int)$b['photo_id'];
+    });
+
+    $mostViewedPhoto = $photosByViews[0] ?? null;
+    $mostDownloadedPhoto = $photosByDownloads[0] ?? null;
+    $topDownloadedPhotos = array_slice($photosByDownloads, 0, 20);
+
+    // Preserve the existing user-selected sort for the views table.
     usort($photoStats, function ($a, $b) use ($sort, $direction) {
 
         if ($a[$sort] !== $b[$sort]) {
@@ -689,8 +729,79 @@ try {
             padding: 24px;
         }
 
-        .latest-viewed-panel {
+        .photo-tabs {
             margin-bottom: 30px;
+        }
+
+        .photo-tabs__list {
+            position: relative;
+            z-index: 1;
+
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            align-items: stretch;
+            gap: 10px;
+        }
+
+        .photo-tab {
+            display: grid;
+            align-content: start;
+            gap: 12px;
+
+            min-width: 0;
+            padding: 16px;
+
+            border: 1px solid transparent;
+            border-radius: 12px 12px 0 0;
+
+            background: #fafafa;
+            color: inherit;
+
+            text-decoration: none;
+        }
+
+        .photo-tab:hover {
+            background: white;
+        }
+
+        .photo-tab[aria-selected="true"] {
+            margin-bottom: -1px;
+
+            background: white;
+
+            border-color: #e4e5e7;
+            border-bottom-color: white;
+
+            box-shadow: 0 -2px 8px rgba(0, 0, 0, .04);
+        }
+
+        .photo-tab:focus-visible {
+            outline: 2px solid #4b76d1;
+            outline-offset: 2px;
+        }
+
+        .photo-tab__title {
+            margin: 0;
+
+            font-size: 18px;
+        }
+
+        .photo-tab__metric {
+            color: #55595f;
+
+            font-size: 13px;
+            font-weight: 650;
+        }
+
+        .photo-tabs__content {
+            border: 1px solid #e4e5e7;
+            border-radius: 0 0 12px 12px;
+
+            box-shadow: 0 2px 8px rgba(0, 0, 0, .06);
+        }
+
+        .photo-tabs__panel[hidden] {
+            display: none;
         }
 
         .photo-item {
@@ -770,32 +881,16 @@ try {
             border-radius: 5px;
         }
 
-        .recent-views {
-            margin-top: 20px;
-            padding-top: 16px;
-
-            border-top: 1px solid #eeeeef;
-        }
-
-        .recent-views-title {
-            margin: 0 0 10px;
-
-            color: #73767b;
-
-            font-size: 13px;
-            font-weight: 600;
-        }
-
-        .recent-views-list {
+        .photo-list {
             display: grid;
             gap: 0;
         }
 
-        .recent-views-list .photo-item {
-            padding: 6px 0;
+        .photo-list .photo-item {
+            padding: 8px 0;
         }
 
-        .recent-views-list .photo-item + .photo-item {
+        .photo-list .photo-item + .photo-item {
             border-top: 1px solid #f0f0f1;
         }
 
@@ -862,6 +957,10 @@ try {
             border-bottom: 0;
         }
 
+        .table-scroll {
+            overflow-x: auto;
+        }
+
         .metric-value {
             font-size: 16px;
             font-weight: 650;
@@ -893,6 +992,27 @@ try {
                 flex-direction: column;
             }
 
+            .photo-tabs__list {
+                grid-template-columns: 1fr;
+                gap: 6px;
+            }
+
+            .photo-tab {
+                border-radius: 10px;
+            }
+
+            .photo-tab[aria-selected="true"] {
+                margin-bottom: 0;
+
+                border-bottom-color: #e4e5e7;
+            }
+
+            .photo-tabs__content {
+                margin-top: 8px;
+
+                border-radius: 12px;
+            }
+
         }
 
         @media (max-width: 650px) {
@@ -901,8 +1021,12 @@ try {
                 padding: 24px 12px;
             }
 
-            .panel {
-                overflow-x: auto;
+            .photo-tab {
+                padding: 13px;
+            }
+
+            .photo-tab .photo-item__meta--truncate {
+                max-width: 62vw;
             }
 
             table {
@@ -941,7 +1065,8 @@ try {
                         'period' => $value,
                         'sort' => $sort,
                         'direction' => $direction,
-                        'include_admin' => $includeAdmin ? '1' : '0'
+                        'include_admin' => $includeAdmin ? '1' : '0',
+                        'photo_tab' => $photoTab
                     ])) ?>"
                 >
                     <?= h($label) ?>
@@ -955,7 +1080,8 @@ try {
                     'period' => $period,
                     'sort' => $sort,
                     'direction' => $direction,
-                    'include_admin' => $includeAdmin ? '0' : '1'
+                    'include_admin' => $includeAdmin ? '0' : '1',
+                    'photo_tab' => $photoTab
                 ])) ?>"
             >
                 <?= $includeAdmin
@@ -1037,167 +1163,254 @@ try {
 
     </div>
 
-    <section class="dashboard-card panel latest-viewed-panel">
+    <section class="photo-tabs" data-photo-tabs>
 
-        <div class="panel-header">
+        <div class="photo-tabs__list" role="tablist" aria-label="Bildanalys">
 
-            <h2>Senast visade bild</h2>
+            <a
+                class="dashboard-card photo-tab"
+                id="photo-tab-latest"
+                href="?<?= h(http_build_query([
+                    'period' => $period,
+                    'sort' => $sort,
+                    'direction' => $direction,
+                    'include_admin' => $includeAdmin ? '1' : '0',
+                    'photo_tab' => 'latest'
+                ])) ?>"
+                role="tab"
+                aria-selected="<?= $photoTab === 'latest' ? 'true' : 'false' ?>"
+                aria-controls="photo-panel-latest"
+                tabindex="<?= $photoTab === 'latest' ? '0' : '-1' ?>"
+                data-photo-tab="latest"
+            >
+                <h2 class="photo-tab__title">Senast</h2>
 
-            <span class="panel-hint">
-                <?= h($allowedPeriods[$period]) ?>
-            </span>
+                <?php if ($latestViewedPhoto): ?>
+                    <div class="photo-item photo-item--compact">
+                        <?php if (!empty($latestViewedPhoto['image_url'])): ?>
+                            <img
+                                class="photo-item__thumbnail photo-item__thumbnail--compact"
+                                src="<?= h($latestViewedPhoto['image_url']) ?>"
+                                alt=""
+                                loading="lazy"
+                            >
+                        <?php endif; ?>
+
+                        <div class="photo-item__body">
+                            <div class="photo-item__id">
+                                Photo <?= $latestViewedPhoto['photo_id'] !== null
+                                    ? h($latestViewedPhoto['photo_id'])
+                                    : '&ndash;'
+                                ?>
+                            </div>
+                            <time
+                                class="photo-tab__metric"
+                                datetime="<?= h($latestViewedPhoto['created_at']) ?>"
+                            >
+                                <?= h($latestViewedPhoto['created_at']) ?>
+                            </time>
+                            <div class="photo-item__meta photo-item__meta--truncate">
+                                Album/sida:
+                                <?= $latestViewedPhoto['page_context'] !== null
+                                    ? h($latestViewedPhoto['page_context'])
+                                    : '&ndash;'
+                                ?>
+                            </div>
+                        </div>
+                    </div>
+                <?php else: ?>
+                    <div class="photo-item__meta">Ingen data för valt filter.</div>
+                <?php endif; ?>
+            </a>
+
+            <a
+                class="dashboard-card photo-tab"
+                id="photo-tab-views"
+                href="?<?= h(http_build_query([
+                    'period' => $period,
+                    'sort' => $sort,
+                    'direction' => $direction,
+                    'include_admin' => $includeAdmin ? '1' : '0',
+                    'photo_tab' => 'views'
+                ])) ?>"
+                role="tab"
+                aria-selected="<?= $photoTab === 'views' ? 'true' : 'false' ?>"
+                aria-controls="photo-panel-views"
+                tabindex="<?= $photoTab === 'views' ? '0' : '-1' ?>"
+                data-photo-tab="views"
+            >
+                <h2 class="photo-tab__title">Mest visade</h2>
+
+                <?php if ($mostViewedPhoto): ?>
+                    <div class="photo-item photo-item--compact">
+                        <?php if (!empty($mostViewedPhoto['image_url'])): ?>
+                            <img
+                                class="photo-item__thumbnail photo-item__thumbnail--compact"
+                                src="<?= h($mostViewedPhoto['image_url']) ?>"
+                                alt=""
+                                loading="lazy"
+                            >
+                        <?php endif; ?>
+
+                        <div class="photo-item__body">
+                            <div class="photo-item__id">
+                                Photo <?= h($mostViewedPhoto['photo_id']) ?>
+                            </div>
+                            <div class="photo-tab__metric">
+                                <?= (int)$mostViewedPhoto['views'] ?> visningar
+                            </div>
+                            <div class="photo-item__meta">
+                                <?= (int)$mostViewedPhoto['sessions'] ?> sessioner
+                            </div>
+                        </div>
+                    </div>
+                <?php else: ?>
+                    <div class="photo-item__meta">Ingen data för valt filter.</div>
+                <?php endif; ?>
+            </a>
+
+            <a
+                class="dashboard-card photo-tab"
+                id="photo-tab-downloads"
+                href="?<?= h(http_build_query([
+                    'period' => $period,
+                    'sort' => $sort,
+                    'direction' => $direction,
+                    'include_admin' => $includeAdmin ? '1' : '0',
+                    'photo_tab' => 'downloads'
+                ])) ?>"
+                role="tab"
+                aria-selected="<?= $photoTab === 'downloads' ? 'true' : 'false' ?>"
+                aria-controls="photo-panel-downloads"
+                tabindex="<?= $photoTab === 'downloads' ? '0' : '-1' ?>"
+                data-photo-tab="downloads"
+            >
+                <h2 class="photo-tab__title">Mest nedladdade</h2>
+
+                <?php if ($mostDownloadedPhoto): ?>
+                    <div class="photo-item photo-item--compact">
+                        <?php if (!empty($mostDownloadedPhoto['image_url'])): ?>
+                            <img
+                                class="photo-item__thumbnail photo-item__thumbnail--compact"
+                                src="<?= h($mostDownloadedPhoto['image_url']) ?>"
+                                alt=""
+                                loading="lazy"
+                            >
+                        <?php endif; ?>
+
+                        <div class="photo-item__body">
+                            <div class="photo-item__id">
+                                Photo <?= h($mostDownloadedPhoto['photo_id']) ?>
+                            </div>
+                            <div class="photo-tab__metric">
+                                <?= (int)$mostDownloadedPhoto['downloads'] ?> nedladdningar
+                            </div>
+                            <div class="photo-item__meta">
+                                <?= (int)$mostDownloadedPhoto['views'] ?> visningar
+                            </div>
+                        </div>
+                    </div>
+                <?php else: ?>
+                    <div class="photo-item__meta">Ingen data för valt filter.</div>
+                <?php endif; ?>
+            </a>
 
         </div>
 
-        <?php if (!$latestViewedPhoto): ?>
+        <div class="dashboard-card panel photo-tabs__content">
 
-            <div class="empty">
-                Inga bildvisningar f&ouml;r valt filter.
-            </div>
-
-        <?php else: ?>
-
-            <div class="photo-item photo-item--featured">
-
-                <?php if (!empty($latestViewedPhoto['image_url'])): ?>
-
-                    <a
-                        class="thumbnail-link"
-                        href="<?= h($latestViewedPhoto['image_url']) ?>"
-                        target="_blank"
-                        rel="noopener"
-                    >
-
-                        <img
-                            class="photo-item__thumbnail photo-item__thumbnail--featured"
-                            src="<?= h($latestViewedPhoto['image_url']) ?>"
-                            alt=""
-                            loading="lazy"
-                        >
-
-                    </a>
-
-                <?php endif; ?>
-
-                <div class="photo-item__body">
-
-                    <div class="photo-item__id">
-                        Photo <?= $latestViewedPhoto['photo_id'] !== null
-                            ? h($latestViewedPhoto['photo_id'])
-                            : '&ndash;'
-                        ?>
-                    </div>
-
-                    <time
-                        class="photo-item__meta"
-                        datetime="<?= h($latestViewedPhoto['created_at']) ?>"
-                    >
-                        <?= h($latestViewedPhoto['created_at']) ?>
-                    </time>
-
-                    <div class="photo-item__meta">
-                        Album/sida:
-                        <?= $latestViewedPhoto['page_context'] !== null
-                            ? h($latestViewedPhoto['page_context'])
-                            : '&ndash;'
-                        ?>
-                    </div>
-
+            <div
+                class="photo-tabs__panel"
+                id="photo-panel-latest"
+                role="tabpanel"
+                aria-labelledby="photo-tab-latest"
+                tabindex="0"
+                <?= $photoTab === 'latest' ? '' : 'hidden' ?>
+                data-photo-panel="latest"
+            >
+                <div class="panel-header">
+                    <h2>Senaste bildvisningarna</h2>
+                    <span class="panel-hint">
+                        Senaste 10 · <?= h($allowedPeriods[$period]) ?>
+                    </span>
                 </div>
 
-            </div>
-
-            <div class="recent-views">
-
-                <h3 class="recent-views-title">
-                    10 senaste bildvisningarna
-                </h3>
-
-                <div class="recent-views-list">
-
-                    <?php foreach ($recentPhotoViews as $recentView): ?>
-
-                        <div class="photo-item photo-item--compact">
-
-                            <?php if (!empty($recentView['image_url'])): ?>
-
-                                <a
-                                    class="thumbnail-link"
-                                    href="<?= h($recentView['image_url']) ?>"
-                                    target="_blank"
-                                    rel="noopener"
-                                >
-                                    <img
-                                        class="photo-item__thumbnail photo-item__thumbnail--compact"
-                                        src="<?= h($recentView['image_url']) ?>"
-                                        alt=""
-                                        loading="lazy"
+                <?php if (count($recentPhotoViews) === 0): ?>
+                    <div class="empty">
+                        Inga bildvisningar för valt filter.
+                    </div>
+                <?php else: ?>
+                    <div class="photo-list">
+                        <?php foreach ($recentPhotoViews as $recentView): ?>
+                            <div class="photo-item photo-item--compact">
+                                <?php if (!empty($recentView['image_url'])): ?>
+                                    <a
+                                        class="thumbnail-link"
+                                        href="<?= h($recentView['image_url']) ?>"
+                                        target="_blank"
+                                        rel="noopener"
                                     >
-                                </a>
+                                        <img
+                                            class="photo-item__thumbnail photo-item__thumbnail--compact"
+                                            src="<?= h($recentView['image_url']) ?>"
+                                            alt=""
+                                            loading="lazy"
+                                        >
+                                    </a>
+                                <?php endif; ?>
 
-                            <?php endif; ?>
-
-                            <div class="photo-item__body">
-
-                                <div class="photo-item__primary">
-                                    <span class="photo-item__id">
-                                        Photo <?= $recentView['photo_id'] !== null
-                                            ? h($recentView['photo_id'])
+                                <div class="photo-item__body">
+                                    <div class="photo-item__primary">
+                                        <span class="photo-item__id">
+                                            Photo <?= $recentView['photo_id'] !== null
+                                                ? h($recentView['photo_id'])
+                                                : '&ndash;'
+                                            ?>
+                                        </span>
+                                        <time
+                                            class="photo-item__meta"
+                                            datetime="<?= h($recentView['created_at']) ?>"
+                                        >
+                                            <?= h($recentView['created_at']) ?>
+                                        </time>
+                                    </div>
+                                    <div class="photo-item__meta photo-item__meta--truncate">
+                                        Album/sida:
+                                        <?= $recentView['page_context'] !== null
+                                            ? h($recentView['page_context'])
                                             : '&ndash;'
                                         ?>
-                                    </span>
-
-                                    <time
-                                        class="photo-item__meta"
-                                        datetime="<?= h($recentView['created_at']) ?>"
-                                    >
-                                        <?= h($recentView['created_at']) ?>
-                                    </time>
+                                    </div>
                                 </div>
-
-                                <div class="photo-item__meta photo-item__meta--truncate">
-                                    Album/sida:
-                                    <?= $recentView['page_context'] !== null
-                                        ? h($recentView['page_context'])
-                                        : '&ndash;'
-                                    ?>
-                                </div>
-
                             </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
 
-                        </div>
-
-                    <?php endforeach; ?>
-
+            <div
+                class="photo-tabs__panel"
+                id="photo-panel-views"
+                role="tabpanel"
+                aria-labelledby="photo-tab-views"
+                tabindex="0"
+                <?= $photoTab === 'views' ? '' : 'hidden' ?>
+                data-photo-panel="views"
+            >
+                <div class="panel-header">
+                    <h2>Mest visade bilder</h2>
+                    <span class="panel-hint">
+                        Topp 20 · <?= h($allowedPeriods[$period]) ?>
+                    </span>
                 </div>
 
-            </div>
-
-        <?php endif; ?>
-
-    </section>
-
-    <section class="dashboard-card panel">
-
-        <div class="panel-header">
-
-            <h2>Mest visade bilder</h2>
-
-            <span class="panel-hint">
-                Topp 20 · <?= h($allowedPeriods[$period]) ?>
-            </span>
-
-        </div>
-
-        <?php if (count($topPhotos) === 0): ?>
-
-            <div class="empty">
-                Ingen statistik ännu.
-            </div>
-
-        <?php else: ?>
-
-            <table>
+                <?php if (count($topPhotos) === 0): ?>
+                    <div class="empty">
+                        Ingen statistik ännu.
+                    </div>
+                <?php else: ?>
+                    <div class="table-scroll">
+                        <table>
 
                 <thead>
 
@@ -1226,7 +1439,8 @@ try {
                                         'period' => $period,
                                         'sort' => $sortValue,
                                         'direction' => $nextDirection,
-                                        'include_admin' => $includeAdmin ? '1' : '0'
+                                        'include_admin' => $includeAdmin ? '1' : '0',
+                                        'photo_tab' => 'views'
                                     ])) ?>"
                                 >
                                     <?= h($sortLabel . $sortIndicator) ?>
@@ -1344,15 +1558,181 @@ try {
 
                 </tbody>
 
-            </table>
+                        </table>
+                    </div>
+                <?php endif; ?>
+            </div>
 
-        <?php endif; ?>
+            <div
+                class="photo-tabs__panel"
+                id="photo-panel-downloads"
+                role="tabpanel"
+                aria-labelledby="photo-tab-downloads"
+                tabindex="0"
+                <?= $photoTab === 'downloads' ? '' : 'hidden' ?>
+                data-photo-panel="downloads"
+            >
+                <div class="panel-header">
+                    <h2>Mest nedladdade bilder</h2>
+                    <span class="panel-hint">
+                        Topp 20 · <?= h($allowedPeriods[$period]) ?>
+                    </span>
+                </div>
+
+                <?php if (count($topDownloadedPhotos) === 0): ?>
+                    <div class="empty">
+                        Ingen statistik ännu.
+                    </div>
+                <?php else: ?>
+                    <div class="table-scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Bild</th>
+                                    <th>Nedladdningar</th>
+                                    <th>Visningar</th>
+                                    <th>Sessioner</th>
+                                    <th>Basket</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            <?php foreach ($topDownloadedPhotos as $photo): ?>
+                                <?php
+                                $basketRate = percent($photo['basket'], $photo['views']);
+                                $downloadRate = percent($photo['downloads'], $photo['views']);
+                                ?>
+                                <tr>
+                                    <td>
+                                        <div class="photo-item">
+                                            <?php if (!empty($photo['image_url'])): ?>
+                                                <a
+                                                    class="thumbnail-link"
+                                                    href="<?= h($photo['image_url']) ?>"
+                                                    target="_blank"
+                                                    rel="noopener"
+                                                >
+                                                    <img
+                                                        class="photo-item__thumbnail"
+                                                        src="<?= h($photo['image_url']) ?>"
+                                                        alt=""
+                                                        loading="lazy"
+                                                    >
+                                                </a>
+                                            <?php endif; ?>
+
+                                            <div class="photo-item__body">
+                                                <div class="photo-item__id">
+                                                    Photo <?= h($photo['photo_id']) ?>
+                                                </div>
+                                                <div class="photo-item__meta">
+                                                    IO200 photo ID
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="metric-value">
+                                            <?= (int)$photo['downloads'] ?>
+                                        </div>
+                                        <div class="metric-meta">
+                                            <?= h($downloadRate) ?> % av views
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="metric-value">
+                                            <?= (int)$photo['views'] ?>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="metric-value">
+                                            <?= (int)$photo['sessions'] ?>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="metric-value">
+                                            <?= (int)$photo['basket'] ?>
+                                        </div>
+                                        <div class="metric-meta">
+                                            <?= h($basketRate) ?> % av views
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                <?php endif; ?>
+            </div>
+
+        </div>
 
     </section>
 
 </div>
 
 <script>
+    (function () {
+        const component = document.querySelector('[data-photo-tabs]');
+
+        if (!component) {
+            return;
+        }
+
+        const tabs = Array.from(component.querySelectorAll('[data-photo-tab]'));
+        const panels = Array.from(component.querySelectorAll('[data-photo-panel]'));
+
+        function activateTab(tab, updateUrl) {
+            const tabName = tab.dataset.photoTab;
+
+            tabs.forEach(function (candidate) {
+                const isActive = candidate === tab;
+                candidate.setAttribute('aria-selected', isActive ? 'true' : 'false');
+                candidate.setAttribute('tabindex', isActive ? '0' : '-1');
+            });
+
+            panels.forEach(function (panel) {
+                panel.hidden = panel.dataset.photoPanel !== tabName;
+            });
+
+            if (updateUrl) {
+                try {
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('photo_tab', tabName);
+                    window.history.replaceState(null, '', url);
+                } catch (error) {
+                    // The href remains a functional non-JavaScript fallback.
+                }
+            }
+        }
+
+        tabs.forEach(function (tab, index) {
+            tab.addEventListener('click', function (event) {
+                event.preventDefault();
+                activateTab(tab, true);
+            });
+
+            tab.addEventListener('keydown', function (event) {
+                let nextIndex = null;
+
+                if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+                    nextIndex = (index + 1) % tabs.length;
+                } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+                    nextIndex = (index - 1 + tabs.length) % tabs.length;
+                } else if (event.key === 'Home') {
+                    nextIndex = 0;
+                } else if (event.key === 'End') {
+                    nextIndex = tabs.length - 1;
+                }
+
+                if (nextIndex !== null) {
+                    event.preventDefault();
+                    activateTab(tabs[nextIndex], true);
+                    tabs[nextIndex].focus();
+                }
+            });
+        });
+    }());
+
     (function () {
         const storageKey = 'ioa_ignore_browser';
         const toggle = document.getElementById('browser-exclusion-toggle');
