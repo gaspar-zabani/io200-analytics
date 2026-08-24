@@ -3,7 +3,6 @@
 header('Content-Type: application/json; charset=utf-8');
 
 require_once __DIR__ . '/../../system/config.php';
-require_once __DIR__ . '/../../../admin/sys/Autoload.php';
 
 function respond($statusCode, $payload) {
     http_response_code($statusCode);
@@ -68,6 +67,19 @@ $downloadUrl = isset($data['download_url']) && is_string($data['download_url'])
 $sessionId = isset($data['session_id']) && is_string($data['session_id'])
     ? substr($data['session_id'], 0, 64)
     : null;
+
+$isAdmin = 0;
+
+if (array_key_exists('is_admin', $data)) {
+    if (!is_int($data['is_admin']) || !in_array($data['is_admin'], [0, 1], true)) {
+        respond(400, [
+            'ok' => false,
+            'error' => 'Invalid is_admin flag'
+        ]);
+    }
+
+    $isAdmin = $data['is_admin'];
+}
 
 $photoId = null;
 
@@ -139,41 +151,6 @@ if ($type === 'batch_download') {
         'photo_urls' => $cleanPhotoUrls,
         'count' => count($cleanPhotoIds)
     ]);
-}
-
-$isAdmin = 0;
-
-try {
-
-    $AuthenticationService = new AuthenticationService(
-        CMS_SECRETKEY,
-        CMS_SECRETKEY,
-        'HS256',
-        dirname(__DIR__, 3)
-    );
-
-    $refreshToken = $_COOKIE['refreshtoken'] ?? null;
-
-    if ($refreshToken) {
-
-        $tokenData = $AuthenticationService->readUserToken($refreshToken);
-
-        if (
-            !ErrorInfo::isError($tokenData) &&
-            is_array($tokenData) &&
-            ($tokenData['type'] ?? null) === 'refresh' &&
-            !empty($tokenData['mail'])
-        ) {
-            $isAdmin = 1;
-        }
-    }
-
-} catch (Throwable $e) {
-
-    error_log(
-        '[IO200 Analytics] Collector authentication check failed: ' .
-        $e->getMessage()
-    );
 }
 
 try {

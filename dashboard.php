@@ -494,6 +494,21 @@ try {
             border-color: #202124;
         }
 
+        .browser-exclusion {
+            width: 100%;
+            margin-top: 5px;
+        }
+
+        .browser-exclusion .filter {
+            cursor: pointer;
+        }
+
+        .browser-exclusion-status {
+            margin-left: 8px;
+            color: #6e7177;
+            font-size: 13px;
+        }
+
         .stats {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
@@ -737,6 +752,23 @@ try {
                 ?>
             </a>
 
+            <div class="browser-exclusion">
+                <button
+                    type="button"
+                    class="filter"
+                    id="browser-exclusion-toggle"
+                    aria-pressed="false"
+                >
+                    Exkludera den h&auml;r webbl&auml;saren
+                </button>
+
+                <span
+                    class="browser-exclusion-status"
+                    id="browser-exclusion-status"
+                    aria-live="polite"
+                ></span>
+            </div>
+
         </div>
 
     </div>
@@ -967,6 +999,52 @@ try {
     </div>
 
 </div>
+
+<script>
+    (function () {
+        const storageKey = 'ioa_ignore_browser';
+        const toggle = document.getElementById('browser-exclusion-toggle');
+        const status = document.getElementById('browser-exclusion-status');
+
+        function isExcluded() {
+            try {
+                return localStorage.getItem(storageKey) === '1';
+            } catch (error) {
+                return false;
+            }
+        }
+
+        function render(excluded) {
+            toggle.classList.toggle('active', excluded);
+            toggle.setAttribute('aria-pressed', excluded ? 'true' : 'false');
+            toggle.textContent = excluded
+                ? 'Sluta exkludera den h\u00e4r webbl\u00e4saren'
+                : 'Exkludera den h\u00e4r webbl\u00e4saren';
+            status.textContent = excluded
+                ? 'Trafik fr\u00e5n webbl\u00e4saren exkluderas'
+                : 'Trafik fr\u00e5n webbl\u00e4saren r\u00e4knas normalt';
+        }
+
+        toggle.addEventListener('click', function () {
+            const excluded = !isExcluded();
+
+            try {
+                if (excluded) {
+                    localStorage.setItem(storageKey, '1');
+                } else {
+                    localStorage.removeItem(storageKey);
+                }
+            } catch (error) {
+                status.textContent = 'Inst\u00e4llningen kunde inte sparas i webbl\u00e4saren';
+                return;
+            }
+
+            render(excluded);
+        });
+
+        render(isExcluded());
+    }());
+</script>
 
 </body>
 </html>

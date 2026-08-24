@@ -21,6 +21,14 @@ document.addEventListener('DOMContentLoaded', function () {
     return sessionId;
 }
 
+    function shouldIgnoreBrowser() {
+        try {
+            return localStorage.getItem('ioa_ignore_browser') === '1' ? 1 : 0;
+        } catch (error) {
+            return 0;
+        }
+    }
+
 
     function trackEvent(type, data = {}) {
 const event = {
@@ -28,7 +36,8 @@ const event = {
     timestamp: new Date().toISOString(),
     page: window.location.pathname,
     session_id: getSessionId(),
-    ...data
+    ...data,
+    is_admin: shouldIgnoreBrowser()
 };
 
         console.log('[IO200 Analytics]', event);
