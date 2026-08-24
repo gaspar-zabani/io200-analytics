@@ -8,6 +8,281 @@ header('Pragma: no-cache');
 
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
+function renderAuthenticationRequired(): void
+{
+    $retryUrl = htmlspecialchars(
+        $_SERVER['REQUEST_URI'] ?? 'dashboard.php',
+        ENT_QUOTES,
+        'UTF-8'
+    );
+
+    ?>
+    <!doctype html>
+    <html lang="sv">
+
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+        <title>IO200 Analytics</title>
+
+        <style>
+            * {
+                box-sizing: border-box;
+            }
+
+            :root {
+                color-scheme: light;
+            }
+
+            body {
+                margin: 0;
+                min-height: 100vh;
+                padding: 48px 20px;
+
+                background:
+                    radial-gradient(
+                        circle at top left,
+                        #ffffff 0,
+                        #f5f6f8 42%,
+                        #eef0f3 100%
+                    );
+                color: #202124;
+
+                font-family:
+                    -apple-system,
+                    BlinkMacSystemFont,
+                    "Segoe UI",
+                    Roboto,
+                    Arial,
+                    sans-serif;
+            }
+
+            .auth-shell {
+                width: 100%;
+                max-width: 760px;
+                margin: 0 auto;
+            }
+
+            .auth-brand {
+                display: flex;
+                align-items: center;
+                gap: 14px;
+
+                margin-bottom: 22px;
+            }
+
+            .auth-brand-icon {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+
+                width: 48px;
+                height: 48px;
+
+                border-radius: 14px;
+
+                background: #202124;
+                color: white;
+
+                font-size: 24px;
+
+                box-shadow: 0 6px 18px rgba(0, 0, 0, .14);
+            }
+
+            .auth-brand-text strong {
+                display: block;
+
+                font-size: 20px;
+                line-height: 1.2;
+            }
+
+            .auth-brand-text span {
+                color: #74777c;
+
+                font-size: 14px;
+            }
+
+            .auth-card {
+                overflow: hidden;
+
+                background: rgba(255, 255, 255, .96);
+
+                border: 1px solid rgba(0, 0, 0, .06);
+                border-radius: 18px;
+
+                box-shadow: 0 18px 55px rgba(0, 0, 0, .08);
+            }
+
+            .auth-card-main {
+                padding: 38px;
+            }
+
+            .auth-symbol {
+                margin-bottom: 18px;
+
+                font-size: 44px;
+            }
+
+            h1 {
+                margin: 0 0 10px;
+
+                font-size: 32px;
+                line-height: 1.15;
+            }
+
+            .auth-lead {
+                margin: 0 0 10px;
+
+                color: #6e7177;
+
+                font-size: 17px;
+                line-height: 1.6;
+            }
+
+            .auth-message {
+                margin: 0;
+
+                line-height: 1.6;
+            }
+
+            .auth-actions {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+
+                margin-top: 30px;
+            }
+
+            .auth-button {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+
+                min-height: 48px;
+                padding: 0 20px;
+
+                border: 0;
+                border-radius: 9px;
+
+                background: #202124;
+                color: white;
+
+                font: inherit;
+                font-weight: 650;
+                text-decoration: none;
+
+                transition:
+                    transform .12s ease,
+                    opacity .12s ease;
+            }
+
+            .auth-button:hover {
+                opacity: .9;
+                transform: translateY(-1px);
+            }
+
+            .auth-button.secondary {
+                background: #eceef1;
+                color: #202124;
+            }
+
+            .auth-hint {
+                margin: 18px 0 0;
+
+                color: #74777c;
+
+                font-size: 14px;
+                line-height: 1.55;
+            }
+
+            @media (max-width: 600px) {
+                body {
+                    padding: 25px 14px;
+                }
+
+                .auth-card-main {
+                    padding: 27px 22px;
+                }
+
+                h1 {
+                    font-size: 27px;
+                }
+
+                .auth-actions {
+                    flex-direction: column;
+                }
+
+                .auth-button {
+                    width: 100%;
+                }
+            }
+        </style>
+    </head>
+
+    <body>
+        <main class="auth-shell">
+            <div class="auth-brand">
+                <div class="auth-brand-icon" aria-hidden="true">
+                    &#128202;
+                </div>
+
+                <div class="auth-brand-text">
+                    <strong>IO200 Analytics</strong>
+                    <span>Dashboard</span>
+                </div>
+            </div>
+
+            <div class="auth-card">
+                <div class="auth-card-main">
+                    <div class="auth-symbol" aria-hidden="true">
+                        &#128274;
+                    </div>
+
+                    <h1>IO200 Analytics</h1>
+
+                    <p class="auth-lead">
+                        Admininloggning krävs
+                    </p>
+
+                    <p class="auth-message">
+                        Du måste vara inloggad i IO200 Admin för att visa
+                        analysdata. Logga in och kom sedan tillbaka hit.
+                    </p>
+
+                    <div class="auth-actions">
+                        <a
+                            class="auth-button"
+                            href="/admin/"
+                            target="_blank"
+                            rel="noopener"
+                        >
+                            Öppna IO200 Admin
+                        </a>
+
+                        <a
+                            class="auth-button secondary"
+                            href="<?= $retryUrl ?>"
+                        >
+                            Försök igen
+                        </a>
+                    </div>
+
+                    <p class="auth-hint">
+                        Admin öppnas i en ny flik så att dashboarden kan ligga
+                        kvar här.
+                    </p>
+                </div>
+            </div>
+        </main>
+    </body>
+
+    </html>
+    <?php
+
+    exit;
+}
+
 // --------------------------------------------------
 // IO200 admin authentication
 // --------------------------------------------------
@@ -23,7 +298,7 @@ $refreshToken = $_COOKIE['refreshtoken'] ?? null;
 
 if (!$refreshToken) {
     http_response_code(403);
-    die('IO200 Analytics: authentication required.');
+    renderAuthenticationRequired();
 }
 
 $tokenData = $AuthenticationService->readUserToken($refreshToken);
@@ -35,7 +310,7 @@ if (
     empty($tokenData['mail'])
 ) {
     http_response_code(403);
-    die('IO200 Analytics: authentication required.');
+    renderAuthenticationRequired();
 }
 
 // --------------------------------------------------
@@ -100,6 +375,7 @@ function readablePagePath($pagePath)
 $period = $_GET['period'] ?? '30';
 
 $allowedPeriods = [
+    'today' => 'Idag',
     '7'   => '7 dagar',
     '30'  => '30 dagar',
     '90'  => '90 dagar',
@@ -143,7 +419,12 @@ $whereAdmin = $includeAdmin
 
 $whereDate = '';
 
-if ($period !== 'all') {
+if ($period === 'today') {
+    $whereDate = "
+        AND created_at >= CURDATE()
+        AND created_at <= NOW()
+    ";
+} elseif ($period !== 'all') {
     $days = (int)$period;
 
     $whereDate = "
@@ -799,21 +1080,6 @@ try {
             border-color: #202124;
         }
 
-        .browser-exclusion {
-            width: 100%;
-            margin-top: 5px;
-        }
-
-        .browser-exclusion .filter {
-            cursor: pointer;
-        }
-
-        .browser-exclusion-status {
-            margin-left: 8px;
-            color: #6e7177;
-            font-size: 13px;
-        }
-
         .kpi-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
@@ -1251,7 +1517,7 @@ try {
             <?php foreach ($allowedPeriods as $value => $label): ?>
 
                 <a
-                    class="filter <?= $period === $value ? 'active' : '' ?>"
+                    class="filter <?= $period === (string)$value ? 'active' : '' ?>"
                     href="?<?= h(http_build_query([
                         'period' => $value,
                         'sort' => $sort,
@@ -1264,39 +1530,6 @@ try {
                 </a>
 
             <?php endforeach; ?>
-
-            <a
-                class="filter <?= $includeAdmin ? 'active' : '' ?>"
-                href="?<?= h(http_build_query([
-                    'period' => $period,
-                    'sort' => $sort,
-                    'direction' => $direction,
-                    'include_admin' => $includeAdmin ? '0' : '1',
-                    'photo_tab' => $photoTab
-                ])) ?>"
-            >
-                <?= $includeAdmin
-                    ? 'Admintrafik inkluderad'
-                    : 'Inkludera admintrafik'
-                ?>
-            </a>
-
-            <div class="browser-exclusion">
-                <button
-                    type="button"
-                    class="filter"
-                    id="browser-exclusion-toggle"
-                    aria-pressed="false"
-                >
-                    Exkludera den h&auml;r webbl&auml;saren
-                </button>
-
-                <span
-                    class="browser-exclusion-status"
-                    id="browser-exclusion-status"
-                    aria-live="polite"
-                ></span>
-            </div>
 
         </div>
 
@@ -2064,49 +2297,6 @@ try {
         });
     }());
 
-    (function () {
-        const storageKey = 'ioa_ignore_browser';
-        const toggle = document.getElementById('browser-exclusion-toggle');
-        const status = document.getElementById('browser-exclusion-status');
-
-        function isExcluded() {
-            try {
-                return localStorage.getItem(storageKey) === '1';
-            } catch (error) {
-                return false;
-            }
-        }
-
-        function render(excluded) {
-            toggle.classList.toggle('active', excluded);
-            toggle.setAttribute('aria-pressed', excluded ? 'true' : 'false');
-            toggle.textContent = excluded
-                ? 'Sluta exkludera den h\u00e4r webbl\u00e4saren'
-                : 'Exkludera den h\u00e4r webbl\u00e4saren';
-            status.textContent = excluded
-                ? 'Trafik fr\u00e5n webbl\u00e4saren exkluderas'
-                : 'Trafik fr\u00e5n webbl\u00e4saren r\u00e4knas normalt';
-        }
-
-        toggle.addEventListener('click', function () {
-            const excluded = !isExcluded();
-
-            try {
-                if (excluded) {
-                    localStorage.setItem(storageKey, '1');
-                } else {
-                    localStorage.removeItem(storageKey);
-                }
-            } catch (error) {
-                status.textContent = 'Inst\u00e4llningen kunde inte sparas i webbl\u00e4saren';
-                return;
-            }
-
-            render(excluded);
-        });
-
-        render(isExcluded());
-    }());
 </script>
 
 </body>
