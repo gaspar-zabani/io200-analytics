@@ -303,6 +303,54 @@ try {
     }
 
     // --------------------------------------------------
+    // Recent photo views
+    // --------------------------------------------------
+
+    $recentPhotoViews = [];
+
+    $result = $mysqli->query("
+        SELECT
+            photo_id,
+            image_url,
+            page_path,
+            created_at
+        FROM ioa_events
+        WHERE event_type = 'photo_view'
+          {$whereAdmin}
+          {$whereDate}
+        ORDER BY created_at DESC, id DESC
+        LIMIT 10
+    ");
+
+    while ($row = $result->fetch_assoc()) {
+        $row['page_context'] = readablePagePath($row['page_path'] ?? null);
+
+        if (empty($row['image_url']) && !empty($row['photo_id'])) {
+            $photoId = (int)$row['photo_id'];
+
+            $imageResult = $mysqli->query("
+                SELECT image_url
+                FROM ioa_events
+                WHERE photo_id = {$photoId}
+                  AND image_url IS NOT NULL
+                  AND image_url <> ''
+                  {$whereAdmin}
+                  {$whereDate}
+                ORDER BY created_at DESC, id DESC
+                LIMIT 1
+            ");
+
+            $imageRow = $imageResult->fetch_assoc();
+
+            if ($imageRow) {
+                $row['image_url'] = $imageRow['image_url'];
+            }
+        }
+
+        $recentPhotoViews[] = $row;
+    }
+
+    // --------------------------------------------------
     // Build per-photo stats
     // --------------------------------------------------
 
@@ -663,6 +711,69 @@ try {
             gap: 5px;
         }
 
+        .recent-views {
+            margin-top: 20px;
+            padding-top: 16px;
+
+            border-top: 1px solid #eeeeef;
+        }
+
+        .recent-views-title {
+            margin: 0 0 10px;
+
+            color: #73767b;
+
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .recent-views-list {
+            display: grid;
+            gap: 6px;
+        }
+
+        .recent-view {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+
+            min-height: 46px;
+        }
+
+        .recent-view-thumbnail {
+            display: block;
+
+            width: 60px;
+            height: 42px;
+
+            object-fit: cover;
+
+            background: #eee;
+
+            border-radius: 5px;
+        }
+
+        .recent-view-details {
+            min-width: 0;
+        }
+
+        .recent-view-primary {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px 10px;
+            align-items: baseline;
+        }
+
+        .recent-view-context {
+            overflow: hidden;
+
+            color: #85888d;
+
+            font-size: 12px;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
         .panel-header {
             display: flex;
             justify-content: space-between;
@@ -998,6 +1109,72 @@ try {
                             : '&ndash;'
                         ?>
                     </div>
+
+                </div>
+
+            </div>
+
+            <div class="recent-views">
+
+                <h3 class="recent-views-title">
+                    10 senaste bildvisningarna
+                </h3>
+
+                <div class="recent-views-list">
+
+                    <?php foreach ($recentPhotoViews as $recentView): ?>
+
+                        <div class="recent-view">
+
+                            <?php if (!empty($recentView['image_url'])): ?>
+
+                                <a
+                                    class="thumbnail-link"
+                                    href="<?= h($recentView['image_url']) ?>"
+                                    target="_blank"
+                                    rel="noopener"
+                                >
+                                    <img
+                                        class="recent-view-thumbnail"
+                                        src="<?= h($recentView['image_url']) ?>"
+                                        alt=""
+                                        loading="lazy"
+                                    >
+                                </a>
+
+                            <?php endif; ?>
+
+                            <div class="recent-view-details">
+
+                                <div class="recent-view-primary">
+                                    <span class="photo-id">
+                                        Photo <?= $recentView['photo_id'] !== null
+                                            ? h($recentView['photo_id'])
+                                            : '&ndash;'
+                                        ?>
+                                    </span>
+
+                                    <time
+                                        class="muted"
+                                        datetime="<?= h($recentView['created_at']) ?>"
+                                    >
+                                        <?= h($recentView['created_at']) ?>
+                                    </time>
+                                </div>
+
+                                <div class="recent-view-context">
+                                    Album/sida:
+                                    <?= $recentView['page_context'] !== null
+                                        ? h($recentView['page_context'])
+                                        : '&ndash;'
+                                    ?>
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    <?php endforeach; ?>
 
                 </div>
 
