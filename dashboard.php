@@ -326,7 +326,7 @@ try {
           {$whereAdmin}
           {$whereDate}
         ORDER BY created_at DESC, id DESC
-        LIMIT 10
+        LIMIT 20
     ");
 
     while ($row = $result->fetch_assoc()) {
@@ -786,13 +786,6 @@ try {
             font-size: 18px;
         }
 
-        .photo-tab__metric {
-            color: #55595f;
-
-            font-size: 13px;
-            font-weight: 650;
-        }
-
         .photo-tabs__content {
             border: 1px solid #e4e5e7;
             border-radius: 0 0 12px 12px;
@@ -857,8 +850,8 @@ try {
         .photo-item__thumbnail {
             display: block;
 
-            width: 72px;
-            height: 50px;
+            width: 80px;
+            height: 56px;
 
             object-fit: cover;
 
@@ -875,8 +868,8 @@ try {
         }
 
         .photo-item__thumbnail--compact {
-            width: 60px;
-            height: 42px;
+            width: 78px;
+            height: 55px;
 
             border-radius: 5px;
         }
@@ -1183,13 +1176,13 @@ try {
                 tabindex="<?= $photoTab === 'latest' ? '0' : '-1' ?>"
                 data-photo-tab="latest"
             >
-                <h2 class="photo-tab__title">Senast</h2>
+                <h2 class="photo-tab__title">Senaste visningarna</h2>
 
                 <?php if ($latestViewedPhoto): ?>
-                    <div class="photo-item photo-item--compact">
+                    <div class="photo-item photo-item--featured">
                         <?php if (!empty($latestViewedPhoto['image_url'])): ?>
                             <img
-                                class="photo-item__thumbnail photo-item__thumbnail--compact"
+                                class="photo-item__thumbnail photo-item__thumbnail--featured"
                                 src="<?= h($latestViewedPhoto['image_url']) ?>"
                                 alt=""
                                 loading="lazy"
@@ -1200,19 +1193,6 @@ try {
                             <div class="photo-item__id">
                                 Photo <?= $latestViewedPhoto['photo_id'] !== null
                                     ? h($latestViewedPhoto['photo_id'])
-                                    : '&ndash;'
-                                ?>
-                            </div>
-                            <time
-                                class="photo-tab__metric"
-                                datetime="<?= h($latestViewedPhoto['created_at']) ?>"
-                            >
-                                <?= h($latestViewedPhoto['created_at']) ?>
-                            </time>
-                            <div class="photo-item__meta photo-item__meta--truncate">
-                                Album/sida:
-                                <?= $latestViewedPhoto['page_context'] !== null
-                                    ? h($latestViewedPhoto['page_context'])
                                     : '&ndash;'
                                 ?>
                             </div>
@@ -1242,10 +1222,10 @@ try {
                 <h2 class="photo-tab__title">Mest visade</h2>
 
                 <?php if ($mostViewedPhoto): ?>
-                    <div class="photo-item photo-item--compact">
+                    <div class="photo-item photo-item--featured">
                         <?php if (!empty($mostViewedPhoto['image_url'])): ?>
                             <img
-                                class="photo-item__thumbnail photo-item__thumbnail--compact"
+                                class="photo-item__thumbnail photo-item__thumbnail--featured"
                                 src="<?= h($mostViewedPhoto['image_url']) ?>"
                                 alt=""
                                 loading="lazy"
@@ -1255,12 +1235,6 @@ try {
                         <div class="photo-item__body">
                             <div class="photo-item__id">
                                 Photo <?= h($mostViewedPhoto['photo_id']) ?>
-                            </div>
-                            <div class="photo-tab__metric">
-                                <?= (int)$mostViewedPhoto['views'] ?> visningar
-                            </div>
-                            <div class="photo-item__meta">
-                                <?= (int)$mostViewedPhoto['sessions'] ?> sessioner
                             </div>
                         </div>
                     </div>
@@ -1288,10 +1262,10 @@ try {
                 <h2 class="photo-tab__title">Mest nedladdade</h2>
 
                 <?php if ($mostDownloadedPhoto): ?>
-                    <div class="photo-item photo-item--compact">
+                    <div class="photo-item photo-item--featured">
                         <?php if (!empty($mostDownloadedPhoto['image_url'])): ?>
                             <img
-                                class="photo-item__thumbnail photo-item__thumbnail--compact"
+                                class="photo-item__thumbnail photo-item__thumbnail--featured"
                                 src="<?= h($mostDownloadedPhoto['image_url']) ?>"
                                 alt=""
                                 loading="lazy"
@@ -1301,12 +1275,6 @@ try {
                         <div class="photo-item__body">
                             <div class="photo-item__id">
                                 Photo <?= h($mostDownloadedPhoto['photo_id']) ?>
-                            </div>
-                            <div class="photo-tab__metric">
-                                <?= (int)$mostDownloadedPhoto['downloads'] ?> nedladdningar
-                            </div>
-                            <div class="photo-item__meta">
-                                <?= (int)$mostDownloadedPhoto['views'] ?> visningar
                             </div>
                         </div>
                     </div>
@@ -1331,7 +1299,7 @@ try {
                 <div class="panel-header">
                     <h2>Senaste bildvisningarna</h2>
                     <span class="panel-hint">
-                        Senaste 10 · <?= h($allowedPeriods[$period]) ?>
+                        Senaste 20 · <?= h($allowedPeriods[$period]) ?>
                     </span>
                 </div>
 
@@ -1398,7 +1366,7 @@ try {
                 data-photo-panel="views"
             >
                 <div class="panel-header">
-                    <h2>Mest visade bilder</h2>
+                    <h2>Mest visade bilderna</h2>
                     <span class="panel-hint">
                         Topp 20 · <?= h($allowedPeriods[$period]) ?>
                     </span>
@@ -1573,7 +1541,7 @@ try {
                 data-photo-panel="downloads"
             >
                 <div class="panel-header">
-                    <h2>Mest nedladdade bilder</h2>
+                    <h2>Mest nedladdade bilderna</h2>
                     <span class="panel-hint">
                         Topp 20 · <?= h($allowedPeriods[$period]) ?>
                     </span>
