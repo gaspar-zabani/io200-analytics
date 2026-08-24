@@ -650,7 +650,7 @@ try {
             font-size: 13px;
         }
 
-        .stats {
+        .kpi-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
 
@@ -659,18 +659,18 @@ try {
             margin-bottom: 30px;
         }
 
-        .stat-card {
-            padding: 22px;
-
+        .dashboard-card {
             background: white;
-
             border-radius: 12px;
-
             box-shadow:
                 0 2px 8px rgba(0, 0, 0, .06);
         }
 
-        .stat-value {
+        .kpi-card {
+            padding: 22px;
+        }
+
+        .kpi-card__value {
             display: block;
 
             margin-bottom: 5px;
@@ -679,7 +679,7 @@ try {
             font-weight: 750;
         }
 
-        .stat-label {
+        .kpi-card__label {
             color: #73767b;
 
             font-size: 14px;
@@ -687,28 +687,87 @@ try {
 
         .panel {
             padding: 24px;
-
-            background: white;
-
-            border-radius: 12px;
-
-            box-shadow:
-                0 2px 8px rgba(0, 0, 0, .06);
         }
 
         .latest-viewed-panel {
             margin-bottom: 30px;
         }
 
-        .latest-viewed {
+        .photo-item {
             display: flex;
             align-items: center;
+            gap: 13px;
+
+            min-width: 0;
+        }
+
+        .photo-item--featured {
             gap: 16px;
         }
 
-        .latest-viewed-details {
+        .photo-item--compact {
+            gap: 10px;
+
+            min-height: 46px;
+        }
+
+        .photo-item__body {
             display: grid;
-            gap: 5px;
+            gap: 3px;
+
+            min-width: 0;
+        }
+
+        .photo-item__primary {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: baseline;
+            gap: 4px 10px;
+        }
+
+        .photo-item__id {
+            font-weight: 700;
+        }
+
+        .photo-item__meta {
+            color: #85888d;
+
+            font-size: 12px;
+            line-height: 1.35;
+        }
+
+        .photo-item__meta--truncate {
+            overflow: hidden;
+
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .photo-item__thumbnail {
+            display: block;
+
+            width: 72px;
+            height: 50px;
+
+            object-fit: cover;
+
+            background: #eee;
+
+            border-radius: 6px;
+        }
+
+        .photo-item__thumbnail--featured {
+            width: 112px;
+            height: 78px;
+
+            border-radius: 8px;
+        }
+
+        .photo-item__thumbnail--compact {
+            width: 60px;
+            height: 42px;
+
+            border-radius: 5px;
         }
 
         .recent-views {
@@ -729,49 +788,21 @@ try {
 
         .recent-views-list {
             display: grid;
-            gap: 6px;
+            gap: 0;
         }
 
-        .recent-view {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-
-            min-height: 46px;
+        .recent-views-list .photo-item {
+            padding: 6px 0;
         }
 
-        .recent-view-thumbnail {
+        .recent-views-list .photo-item + .photo-item {
+            border-top: 1px solid #f0f0f1;
+        }
+
+        .thumbnail-link {
             display: block;
 
-            width: 60px;
-            height: 42px;
-
-            object-fit: cover;
-
-            background: #eee;
-
-            border-radius: 5px;
-        }
-
-        .recent-view-details {
-            min-width: 0;
-        }
-
-        .recent-view-primary {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 4px 10px;
-            align-items: baseline;
-        }
-
-        .recent-view-context {
-            overflow: hidden;
-
-            color: #85888d;
-
-            font-size: 12px;
-            text-overflow: ellipsis;
-            white-space: nowrap;
+            flex: 0 0 auto;
         }
 
         .panel-header {
@@ -831,50 +862,12 @@ try {
             border-bottom: 0;
         }
 
-        .photo {
-            display: flex;
-            align-items: center;
-
-            gap: 13px;
-        }
-
-        .thumbnail-link {
-            display: block;
-
-            flex: 0 0 auto;
-        }
-
-        .thumbnail {
-            display: block;
-
-            width: 96px;
-            height: 68px;
-
-            object-fit: cover;
-
-            background: #eee;
-
-            border-radius: 7px;
-        }
-
-        .photo-id {
-            font-weight: 700;
-        }
-
-        .muted {
-            margin-top: 3px;
-
-            color: #85888d;
-
-            font-size: 12px;
-        }
-
-        .number {
+        .metric-value {
             font-size: 16px;
             font-weight: 650;
         }
 
-        .rate {
+        .metric-meta {
             margin-top: 3px;
 
             color: #8a8d92;
@@ -891,7 +884,7 @@ try {
 
         @media (max-width: 850px) {
 
-            .stats {
+            .kpi-grid {
                 grid-template-columns: repeat(2, 1fr);
             }
 
@@ -992,51 +985,51 @@ try {
 
     </div>
 
-    <div class="stats">
+    <div class="kpi-grid">
 
-        <div class="stat-card">
+        <div class="dashboard-card kpi-card">
 
-            <span class="stat-value">
+            <span class="kpi-card__value">
                 <?= number_format($photoViews, 0, ',', ' ') ?>
             </span>
 
-            <span class="stat-label">
+            <span class="kpi-card__label">
                 Bildvisningar
             </span>
 
         </div>
 
-        <div class="stat-card">
+        <div class="dashboard-card kpi-card">
 
-            <span class="stat-value">
+            <span class="kpi-card__value">
                 <?= number_format($sessions, 0, ',', ' ') ?>
             </span>
 
-            <span class="stat-label">
+            <span class="kpi-card__label">
                 Sessioner
             </span>
 
         </div>
 
-        <div class="stat-card">
+        <div class="dashboard-card kpi-card">
 
-            <span class="stat-value">
+            <span class="kpi-card__value">
                 <?= number_format($basketAdds, 0, ',', ' ') ?>
             </span>
 
-            <span class="stat-label">
+            <span class="kpi-card__label">
                 Tillagda i basket
             </span>
 
         </div>
 
-        <div class="stat-card">
+        <div class="dashboard-card kpi-card">
 
-            <span class="stat-value">
+            <span class="kpi-card__value">
                 <?= number_format($downloads, 0, ',', ' ') ?>
             </span>
 
-            <span class="stat-label">
+            <span class="kpi-card__label">
                 Nedladdade bilder
             </span>
 
@@ -1044,7 +1037,7 @@ try {
 
     </div>
 
-    <div class="panel latest-viewed-panel">
+    <section class="dashboard-card panel latest-viewed-panel">
 
         <div class="panel-header">
 
@@ -1064,7 +1057,7 @@ try {
 
         <?php else: ?>
 
-            <div class="latest-viewed">
+            <div class="photo-item photo-item--featured">
 
                 <?php if (!empty($latestViewedPhoto['image_url'])): ?>
 
@@ -1076,7 +1069,7 @@ try {
                     >
 
                         <img
-                            class="thumbnail"
+                            class="photo-item__thumbnail photo-item__thumbnail--featured"
                             src="<?= h($latestViewedPhoto['image_url']) ?>"
                             alt=""
                             loading="lazy"
@@ -1086,9 +1079,9 @@ try {
 
                 <?php endif; ?>
 
-                <div class="latest-viewed-details">
+                <div class="photo-item__body">
 
-                    <div class="photo-id">
+                    <div class="photo-item__id">
                         Photo <?= $latestViewedPhoto['photo_id'] !== null
                             ? h($latestViewedPhoto['photo_id'])
                             : '&ndash;'
@@ -1096,13 +1089,13 @@ try {
                     </div>
 
                     <time
-                        class="muted"
+                        class="photo-item__meta"
                         datetime="<?= h($latestViewedPhoto['created_at']) ?>"
                     >
                         <?= h($latestViewedPhoto['created_at']) ?>
                     </time>
 
-                    <div class="muted">
+                    <div class="photo-item__meta">
                         Album/sida:
                         <?= $latestViewedPhoto['page_context'] !== null
                             ? h($latestViewedPhoto['page_context'])
@@ -1124,7 +1117,7 @@ try {
 
                     <?php foreach ($recentPhotoViews as $recentView): ?>
 
-                        <div class="recent-view">
+                        <div class="photo-item photo-item--compact">
 
                             <?php if (!empty($recentView['image_url'])): ?>
 
@@ -1135,7 +1128,7 @@ try {
                                     rel="noopener"
                                 >
                                     <img
-                                        class="recent-view-thumbnail"
+                                        class="photo-item__thumbnail photo-item__thumbnail--compact"
                                         src="<?= h($recentView['image_url']) ?>"
                                         alt=""
                                         loading="lazy"
@@ -1144,10 +1137,10 @@ try {
 
                             <?php endif; ?>
 
-                            <div class="recent-view-details">
+                            <div class="photo-item__body">
 
-                                <div class="recent-view-primary">
-                                    <span class="photo-id">
+                                <div class="photo-item__primary">
+                                    <span class="photo-item__id">
                                         Photo <?= $recentView['photo_id'] !== null
                                             ? h($recentView['photo_id'])
                                             : '&ndash;'
@@ -1155,14 +1148,14 @@ try {
                                     </span>
 
                                     <time
-                                        class="muted"
+                                        class="photo-item__meta"
                                         datetime="<?= h($recentView['created_at']) ?>"
                                     >
                                         <?= h($recentView['created_at']) ?>
                                     </time>
                                 </div>
 
-                                <div class="recent-view-context">
+                                <div class="photo-item__meta photo-item__meta--truncate">
                                     Album/sida:
                                     <?= $recentView['page_context'] !== null
                                         ? h($recentView['page_context'])
@@ -1182,9 +1175,9 @@ try {
 
         <?php endif; ?>
 
-    </div>
+    </section>
 
-    <div class="panel">
+    <section class="dashboard-card panel">
 
         <div class="panel-header">
 
@@ -1267,7 +1260,7 @@ try {
 
                         <td>
 
-                            <div class="photo">
+                            <div class="photo-item">
 
                                 <?php if (!empty($photo['image_url'])): ?>
 
@@ -1279,7 +1272,7 @@ try {
                                     >
 
                                         <img
-                                            class="thumbnail"
+                                            class="photo-item__thumbnail"
                                             src="<?= h($photo['image_url']) ?>"
                                             alt=""
                                             loading="lazy"
@@ -1289,13 +1282,13 @@ try {
 
                                 <?php endif; ?>
 
-                                <div>
+                                <div class="photo-item__body">
 
-                                    <div class="photo-id">
+                                    <div class="photo-item__id">
                                         Photo <?= h($photo['photo_id']) ?>
                                     </div>
 
-                                    <div class="muted">
+                                    <div class="photo-item__meta">
                                         IO200 photo ID
                                     </div>
 
@@ -1307,7 +1300,7 @@ try {
 
                         <td>
 
-                            <div class="number">
+                            <div class="metric-value">
                                 <?= (int)$photo['views'] ?>
                             </div>
 
@@ -1315,7 +1308,7 @@ try {
 
                         <td>
 
-                            <div class="number">
+                            <div class="metric-value">
                                 <?= (int)$photo['sessions'] ?>
                             </div>
 
@@ -1323,11 +1316,11 @@ try {
 
                         <td>
 
-                            <div class="number">
+                            <div class="metric-value">
                                 <?= (int)$photo['basket'] ?>
                             </div>
 
-                            <div class="rate">
+                            <div class="metric-meta">
                                 <?= h($basketRate) ?> % av views
                             </div>
 
@@ -1335,11 +1328,11 @@ try {
 
                         <td>
 
-                            <div class="number">
+                            <div class="metric-value">
                                 <?= (int)$photo['downloads'] ?>
                             </div>
 
-                            <div class="rate">
+                            <div class="metric-meta">
                                 <?= h($downloadRate) ?> % av views
                             </div>
 
@@ -1355,7 +1348,7 @@ try {
 
         <?php endif; ?>
 
-    </div>
+    </section>
 
 </div>
 
