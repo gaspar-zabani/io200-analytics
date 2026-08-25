@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/../../system/config.php';
 require_once __DIR__ . '/../../../admin/sys/Autoload.php';
+require_once __DIR__ . '/localization.php';
 
 header('Cache-Control: no-store, no-cache, must-revalidate');
 header('Pragma: no-cache');
@@ -18,13 +19,13 @@ function renderAuthenticationRequired(): void
 
     ?>
     <!doctype html>
-    <html lang="sv">
+    <html lang="<?= ioa_language_code() ?>">
 
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
-        <title>IO200 Analytics</title>
+        <title><?= ioa_t('app_name') ?></title>
 
         <style>
             * {
@@ -196,6 +197,23 @@ function renderAuthenticationRequired(): void
                 line-height: 1.55;
             }
 
+            .auth-intro {
+                margin: 0 0 24px;
+                color: #4d5156;
+                font-size: 17px;
+                line-height: 1.6;
+            }
+
+            .auth-contact {
+                margin-top: 22px;
+                color: #74777c;
+                font-size: 14px;
+            }
+
+            .auth-contact a {
+                color: inherit;
+            }
+
             @media (max-width: 600px) {
                 body {
                     padding: 25px 14px;
@@ -228,8 +246,8 @@ function renderAuthenticationRequired(): void
                 </div>
 
                 <div class="auth-brand-text">
-                    <strong>IO200 Analytics</strong>
-                    <span>Dashboard</span>
+                    <strong><?= ioa_t('app_name') ?></strong>
+                    <span><?= ioa_t('dashboard') ?></span>
                 </div>
             </div>
 
@@ -239,15 +257,19 @@ function renderAuthenticationRequired(): void
                         &#128274;
                     </div>
 
-                    <h1>IO200 Analytics</h1>
+                    <h1><?= ioa_t('app_name') ?></h1>
+
+                    <p class="auth-intro">
+                        <?= ioa_t('product_intro') ?>
+                        <?= ioa_t('product_activity_summary') ?>
+                    </p>
 
                     <p class="auth-lead">
-                        Admininloggning krävs
+                        <?= ioa_t('auth_required_title') ?>
                     </p>
 
                     <p class="auth-message">
-                        Du måste vara inloggad i IO200 Admin för att visa
-                        analysdata. Logga in och kom sedan tillbaka hit.
+                        <?= ioa_t('auth_required_message') ?>
                     </p>
 
                     <div class="auth-actions">
@@ -257,20 +279,29 @@ function renderAuthenticationRequired(): void
                             target="_blank"
                             rel="noopener"
                         >
-                            Öppna IO200 Admin
+                            <?= ioa_t('auth_open_admin') ?>
                         </a>
 
                         <a
                             class="auth-button secondary"
-                            href="<?= $retryUrl ?>"
+                            href="#"
                         >
-                            Försök igen
+                            <?= ioa_t('get_ioa') ?>
+                        </a>
+
+                        <a class="auth-button secondary" href="<?= $retryUrl ?>">
+                            <?= ioa_t('auth_retry') ?>
                         </a>
                     </div>
 
                     <p class="auth-hint">
-                        Admin öppnas i en ny flik så att dashboarden kan ligga
-                        kvar här.
+                        <?= ioa_t('auth_new_tab_hint') ?>
+                    </p>
+
+                    <p class="auth-contact">
+                        <a href="mailto:ioa@jesperalvermark.se">
+                            <?= ioa_t('feedback') ?>: ioa@jesperalvermark.se
+                        </a>
                     </p>
                 </div>
             </div>
@@ -348,6 +379,7 @@ function readablePagePath($pagePath)
         static function ($segment) {
             return $segment !== '';
         }
+
     ));
 
     if (!$segments) {
@@ -375,11 +407,11 @@ function readablePagePath($pagePath)
 $period = $_GET['period'] ?? '30';
 
 $allowedPeriods = [
-    'today' => 'Idag',
-    '7'   => '7 dagar',
-    '30'  => '30 dagar',
-    '90'  => '90 dagar',
-    'all' => 'All tid'
+    'today' => ioa_translate('period_today'),
+    '7'   => ioa_translate('period_7_days'),
+    '30'  => ioa_translate('period_30_days'),
+    '90'  => ioa_translate('period_90_days'),
+    'all' => ioa_translate('period_all_time')
 ];
 
 if (!array_key_exists($period, $allowedPeriods)) {
@@ -387,10 +419,10 @@ if (!array_key_exists($period, $allowedPeriods)) {
 }
 
 $allowedSorts = [
-    'views' => 'Visningar',
-    'sessions' => 'Sessioner',
-    'basket' => 'Basket',
-    'downloads' => 'Downloads'
+    'views' => ioa_translate('views'),
+    'sessions' => ioa_translate('metric_sessions'),
+    'basket' => ioa_translate('metric_basket'),
+    'downloads' => ioa_translate('metric_downloads')
 ];
 
 $sort = $_GET['sort'] ?? 'views';
@@ -990,19 +1022,19 @@ try {
 
     http_response_code(500);
 
-    die('IO200 Analytics: could not load dashboard.');
+    die(ioa_t('app_name') . ': ' . ioa_t('dashboard_load_error'));
 }
 
 ?>
 <!doctype html>
-<html lang="sv">
+<html lang="<?= ioa_language_code() ?>">
 
 <head>
 
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <title>IO200 Analytics</title>
+    <title><?= ioa_t('app_name') ?></title>
 
     <style>
 
@@ -1492,6 +1524,17 @@ try {
 
         }
 
+        .dashboard-footer {
+            padding: 22px 0 4px;
+            color: #74777c;
+            font-size: 13px;
+            text-align: center;
+        }
+
+        .dashboard-footer a {
+            color: inherit;
+        }
+
     </style>
 
 </head>
@@ -1504,10 +1547,10 @@ try {
 
         <div>
 
-            <h1>IO200 Analytics</h1>
+            <h1><?= ioa_t('app_name') ?></h1>
 
             <p class="subtitle">
-                Vilka bilder fångar faktiskt publikens intresse? 📷
+                <?= ioa_t('dashboard_subtitle') ?>
             </p>
 
         </div>
@@ -1544,7 +1587,7 @@ try {
             </span>
 
             <span class="kpi-card__label">
-                Bildvisningar
+                <?= ioa_t('metric_image_views') ?>
             </span>
 
         </div>
@@ -1556,7 +1599,7 @@ try {
             </span>
 
             <span class="kpi-card__label">
-                Sessioner
+                <?= ioa_t('metric_sessions') ?>
             </span>
 
         </div>
@@ -1568,7 +1611,7 @@ try {
             </span>
 
             <span class="kpi-card__label">
-                Tillagda i basket
+                <?= ioa_t('metric_added_to_basket') ?>
             </span>
 
         </div>
@@ -1580,7 +1623,7 @@ try {
             </span>
 
             <span class="kpi-card__label">
-                Nedladdade bilder
+                <?= ioa_t('metric_downloaded_images') ?>
             </span>
 
         </div>
@@ -1589,7 +1632,7 @@ try {
 
     <section class="photo-tabs" data-photo-tabs>
 
-        <div class="photo-tabs__list" role="tablist" aria-label="Bildanalys">
+        <div class="photo-tabs__list" role="tablist" aria-label="<?= ioa_t('photo_analytics') ?>">
 
             <a
                 class="dashboard-card photo-tab"
@@ -1607,7 +1650,7 @@ try {
                 tabindex="<?= $photoTab === 'latest' ? '0' : '-1' ?>"
                 data-photo-tab="latest"
             >
-                <h2 class="photo-tab__title">Senaste visningarna</h2>
+                <h2 class="photo-tab__title"><?= ioa_t('tab_latest_views') ?></h2>
 
                 <?php if ($latestViewedPhoto): ?>
                     <div class="photo-item photo-item--featured">
@@ -1622,7 +1665,7 @@ try {
 
                         <div class="photo-item__body">
                             <div class="photo-item__id">
-                                Photo <?= $latestViewedPhoto['photo_id'] !== null
+                                <?= ioa_t('photo') ?> <?= $latestViewedPhoto['photo_id'] !== null
                                     ? h($latestViewedPhoto['photo_id'])
                                     : '&ndash;'
                                 ?>
@@ -1630,7 +1673,7 @@ try {
                         </div>
                     </div>
                 <?php else: ?>
-                    <div class="photo-item__meta">Ingen data för valt filter.</div>
+                    <div class="photo-item__meta"><?= ioa_t('no_data_for_filter') ?></div>
                 <?php endif; ?>
             </a>
 
@@ -1650,7 +1693,7 @@ try {
                 tabindex="<?= $photoTab === 'views' ? '0' : '-1' ?>"
                 data-photo-tab="views"
             >
-                <h2 class="photo-tab__title">Mest visade</h2>
+                <h2 class="photo-tab__title"><?= ioa_t('tab_most_viewed') ?></h2>
 
                 <?php if ($mostViewedPhoto): ?>
                     <div class="photo-item photo-item--featured">
@@ -1665,12 +1708,12 @@ try {
 
                         <div class="photo-item__body">
                             <div class="photo-item__id">
-                                Photo <?= h($mostViewedPhoto['photo_id']) ?>
+                                <?= ioa_t('photo') ?> <?= h($mostViewedPhoto['photo_id']) ?>
                             </div>
                         </div>
                     </div>
                 <?php else: ?>
-                    <div class="photo-item__meta">Ingen data för valt filter.</div>
+                    <div class="photo-item__meta"><?= ioa_t('no_data_for_filter') ?></div>
                 <?php endif; ?>
             </a>
 
@@ -1690,7 +1733,7 @@ try {
                 tabindex="<?= $photoTab === 'downloads' ? '0' : '-1' ?>"
                 data-photo-tab="downloads"
             >
-                <h2 class="photo-tab__title">Mest nedladdade</h2>
+                <h2 class="photo-tab__title"><?= ioa_t('tab_most_downloaded') ?></h2>
 
                 <?php if ($mostDownloadedPhoto): ?>
                     <div class="photo-item photo-item--featured">
@@ -1705,12 +1748,12 @@ try {
 
                         <div class="photo-item__body">
                             <div class="photo-item__id">
-                                Photo <?= h($mostDownloadedPhoto['photo_id']) ?>
+                                <?= ioa_t('photo') ?> <?= h($mostDownloadedPhoto['photo_id']) ?>
                             </div>
                         </div>
                     </div>
                 <?php else: ?>
-                    <div class="photo-item__meta">Ingen data för valt filter.</div>
+                    <div class="photo-item__meta"><?= ioa_t('no_data_for_filter') ?></div>
                 <?php endif; ?>
             </a>
 
@@ -1730,25 +1773,25 @@ try {
                 tabindex="<?= $photoTab === 'visits' ? '0' : '-1' ?>"
                 data-photo-tab="visits"
             >
-                <h2 class="photo-tab__title">Besök</h2>
+                <h2 class="photo-tab__title"><?= ioa_t('metric_visits') ?></h2>
 
                 <?php if ($visitSummary['visits'] > 0): ?>
                     <div class="visit-preview">
                         <div class="photo-item__id">
-                            <?= number_format($visitSummary['visits'], 0, ',', ' ') ?> besök
+                            <?= number_format($visitSummary['visits'], 0, ',', ' ') ?> <?= ioa_t('visits_lowercase') ?>
                         </div>
                         <div class="photo-item__meta">
-                            <?= number_format($visitSummary['photo_views'], 0, ',', ' ') ?> bildvisningar
+                            <?= number_format($visitSummary['photo_views'], 0, ',', ' ') ?> <?= ioa_t('image_views_lowercase') ?>
                             &middot;
-                            <?= number_format($visitSummary['downloads'], 0, ',', ' ') ?> nedladdningar
+                            <?= number_format($visitSummary['downloads'], 0, ',', ' ') ?> <?= ioa_t('downloads_lowercase') ?>
                             <?php if ($visitSummary['basket_adds'] > 0): ?>
                                 &middot;
-                                <?= number_format($visitSummary['basket_adds'], 0, ',', ' ') ?> i basket
+                                <?= number_format($visitSummary['basket_adds'], 0, ',', ' ') ?> <?= ioa_t('in_basket') ?>
                             <?php endif; ?>
                         </div>
                     </div>
                 <?php else: ?>
-                    <div class="photo-item__meta">Ingen data för valt filter.</div>
+                    <div class="photo-item__meta"><?= ioa_t('no_data_for_filter') ?></div>
                 <?php endif; ?>
             </a>
 
@@ -1766,15 +1809,15 @@ try {
                 data-photo-panel="latest"
             >
                 <div class="panel-header">
-                    <h2>Senaste bildvisningarna</h2>
+                    <h2><?= ioa_t('latest_image_views') ?></h2>
                     <span class="panel-hint">
-                        Senaste 20 · <?= h($allowedPeriods[$period]) ?>
+                        <?= ioa_t('latest_20') ?> · <?= h($allowedPeriods[$period]) ?>
                     </span>
                 </div>
 
                 <?php if (count($recentPhotoViews) === 0): ?>
                     <div class="empty">
-                        Inga bildvisningar för valt filter.
+                        <?= ioa_t('no_image_views_for_filter') ?>
                     </div>
                 <?php else: ?>
                     <div class="photo-list">
@@ -1799,7 +1842,7 @@ try {
                                 <div class="photo-item__body">
                                     <div class="photo-item__primary">
                                         <span class="photo-item__id">
-                                            Photo <?= $recentView['photo_id'] !== null
+                                            <?= ioa_t('photo') ?> <?= $recentView['photo_id'] !== null
                                                 ? h($recentView['photo_id'])
                                                 : '&ndash;'
                                             ?>
@@ -1812,7 +1855,7 @@ try {
                                         </time>
                                     </div>
                                     <div class="photo-item__meta photo-item__meta--truncate">
-                                        Album/sida:
+                                        <?= ioa_t('album_page') ?>:
                                         <?= $recentView['page_context'] !== null
                                             ? h($recentView['page_context'])
                                             : '&ndash;'
@@ -1835,15 +1878,15 @@ try {
                 data-photo-panel="views"
             >
                 <div class="panel-header">
-                    <h2>Mest visade bilderna</h2>
+                    <h2><?= ioa_t('most_viewed_images') ?></h2>
                     <span class="panel-hint">
-                        Topp 20 · <?= h($allowedPeriods[$period]) ?>
+                        <?= ioa_t('top_20') ?> · <?= h($allowedPeriods[$period]) ?>
                     </span>
                 </div>
 
                 <?php if (count($topPhotos) === 0): ?>
                     <div class="empty">
-                        Ingen statistik ännu.
+                        <?= ioa_t('no_statistics_yet') ?>
                     </div>
                 <?php else: ?>
                     <div class="table-scroll">
@@ -1852,7 +1895,7 @@ try {
                 <thead>
 
                     <tr>
-                        <th>Bild</th>
+                        <th><?= ioa_t('image') ?></th>
 
                         <?php foreach ($allowedSorts as $sortValue => $sortLabel): ?>
 
@@ -1936,11 +1979,11 @@ try {
                                 <div class="photo-item__body">
 
                                     <div class="photo-item__id">
-                                        Photo <?= h($photo['photo_id']) ?>
+                                        <?= ioa_t('photo') ?> <?= h($photo['photo_id']) ?>
                                     </div>
 
                                     <div class="photo-item__meta">
-                                        IO200 photo ID
+                                        <?= ioa_t('ioa_photo_id') ?>
                                     </div>
 
                                 </div>
@@ -1972,7 +2015,7 @@ try {
                             </div>
 
                             <div class="metric-meta">
-                                <?= h($basketRate) ?> % av views
+                                <?= h($basketRate) ?> <?= ioa_t('percent_of_views') ?>
                             </div>
 
                         </td>
@@ -1984,7 +2027,7 @@ try {
                             </div>
 
                             <div class="metric-meta">
-                                <?= h($downloadRate) ?> % av views
+                                <?= h($downloadRate) ?> <?= ioa_t('percent_of_views') ?>
                             </div>
 
                         </td>
@@ -2010,26 +2053,26 @@ try {
                 data-photo-panel="downloads"
             >
                 <div class="panel-header">
-                    <h2>Mest nedladdade bilderna</h2>
+                    <h2><?= ioa_t('most_downloaded_images') ?></h2>
                     <span class="panel-hint">
-                        Topp 20 · <?= h($allowedPeriods[$period]) ?>
+                        <?= ioa_t('top_20') ?> · <?= h($allowedPeriods[$period]) ?>
                     </span>
                 </div>
 
                 <?php if (count($topDownloadedPhotos) === 0): ?>
                     <div class="empty">
-                        Ingen statistik ännu.
+                        <?= ioa_t('no_statistics_yet') ?>
                     </div>
                 <?php else: ?>
                     <div class="table-scroll">
                         <table>
                             <thead>
                                 <tr>
-                                    <th>Bild</th>
-                                    <th>Nedladdningar</th>
-                                    <th>Visningar</th>
-                                    <th>Sessioner</th>
-                                    <th>Basket</th>
+                                    <th><?= ioa_t('image') ?></th>
+                                    <th><?= ioa_t('metric_downloads') ?></th>
+                                    <th><?= ioa_t('views') ?></th>
+                                    <th><?= ioa_t('metric_sessions') ?></th>
+                                    <th><?= ioa_t('metric_basket') ?></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -2059,10 +2102,10 @@ try {
 
                                             <div class="photo-item__body">
                                                 <div class="photo-item__id">
-                                                    Photo <?= h($photo['photo_id']) ?>
+                                                    <?= ioa_t('photo') ?> <?= h($photo['photo_id']) ?>
                                                 </div>
                                                 <div class="photo-item__meta">
-                                                    IO200 photo ID
+                                                    <?= ioa_t('ioa_photo_id') ?>
                                                 </div>
                                             </div>
                                         </div>
@@ -2072,7 +2115,7 @@ try {
                                             <?= (int)$photo['downloads'] ?>
                                         </div>
                                         <div class="metric-meta">
-                                            <?= h($downloadRate) ?> % av views
+                                            <?= h($downloadRate) ?> <?= ioa_t('percent_of_views') ?>
                                         </div>
                                     </td>
                                     <td>
@@ -2090,7 +2133,7 @@ try {
                                             <?= (int)$photo['basket'] ?>
                                         </div>
                                         <div class="metric-meta">
-                                            <?= h($basketRate) ?> % av views
+                                            <?= h($basketRate) ?> <?= ioa_t('percent_of_views') ?>
                                         </div>
                                     </td>
                                 </tr>
@@ -2111,15 +2154,15 @@ try {
                 data-photo-panel="visits"
             >
                 <div class="panel-header">
-                    <h2>Senaste besöken</h2>
+                    <h2><?= ioa_t('latest_visits') ?></h2>
                     <span class="panel-hint">
-                        Senaste 20 · <?= h($allowedPeriods[$period]) ?>
+                        <?= ioa_t('latest_20') ?> · <?= h($allowedPeriods[$period]) ?>
                     </span>
                 </div>
 
                 <?php if (count($recentVisits) === 0): ?>
                     <div class="empty">
-                        Inga besök för valt filter.
+                        <?= ioa_t('no_visits_for_filter') ?>
                     </div>
                 <?php else: ?>
                     <div class="visit-list">
@@ -2138,7 +2181,7 @@ try {
                                 <div class="visit-item__facts">
                                     <div class="visit-fact">
                                         <span class="visit-fact__label">
-                                            Första aktivitet
+                                            <?= ioa_t('first_activity') ?>
                                         </span>
                                         <time
                                             class="visit-fact__value"
@@ -2150,7 +2193,7 @@ try {
 
                                     <div class="visit-fact">
                                         <span class="visit-fact__label">
-                                            Senaste aktivitet
+                                            <?= ioa_t('latest_activity') ?>
                                         </span>
                                         <time
                                             class="visit-fact__value"
@@ -2162,7 +2205,7 @@ try {
 
                                     <div class="visit-fact">
                                         <span class="visit-fact__label">
-                                            Bildvisningar
+                                            <?= ioa_t('metric_image_views') ?>
                                         </span>
                                         <span class="visit-fact__value">
                                             <?= (int)$visit['photo_views'] ?>
@@ -2171,7 +2214,7 @@ try {
 
                                     <div class="visit-fact">
                                         <span class="visit-fact__label">
-                                            Album/sidor
+                                            <?= ioa_t('albums_pages') ?>
                                         </span>
                                         <span class="visit-fact__value">
                                             <?= (int)$visit['page_context_count'] ?>
@@ -2181,7 +2224,7 @@ try {
                                     <?php if ($visit['basket_adds'] > 0): ?>
                                         <div class="visit-fact">
                                             <span class="visit-fact__label">
-                                                Basket
+                                                <?= ioa_t('metric_basket') ?>
                                             </span>
                                             <span class="visit-fact__value">
                                                 <?= (int)$visit['basket_adds'] ?>
@@ -2192,7 +2235,7 @@ try {
                                     <?php if ($visit['downloads'] > 0): ?>
                                         <div class="visit-fact">
                                             <span class="visit-fact__label">
-                                                Nedladdningar
+                                                <?= ioa_t('metric_downloads') ?>
                                             </span>
                                             <span class="visit-fact__value">
                                                 <?= (int)$visit['downloads'] ?>
@@ -2203,7 +2246,7 @@ try {
 
                                 <div class="visit-item__contexts">
                                     <div class="visit-fact__label">
-                                        Album/sidor
+                                        <?= ioa_t('albums_pages') ?>
                                     </div>
 
                                     <?php if ($visibleContexts): ?>
@@ -2214,7 +2257,7 @@ try {
 
                                             <?php if ($additionalContexts > 0): ?>
                                                 <span>
-                                                    +<?= (int)$additionalContexts ?> fler
+                                                    +<?= (int)$additionalContexts ?> <?= ioa_t('more') ?>
                                                 </span>
                                             <?php endif; ?>
                                         </div>
@@ -2231,6 +2274,12 @@ try {
         </div>
 
     </section>
+
+    <footer class="dashboard-footer">
+        <a href="mailto:ioa@jesperalvermark.se">
+            <?= ioa_t('feedback') ?>: ioa@jesperalvermark.se
+        </a>
+    </footer>
 
 </div>
 

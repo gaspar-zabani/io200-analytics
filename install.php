@@ -4,6 +4,7 @@ session_start();
 
 require_once __DIR__ . '/../../system/config.php';
 require_once __DIR__ . '/../../../admin/sys/Autoload.php';
+require_once __DIR__ . '/localization.php';
 
 header('Cache-Control: no-store, no-cache, must-revalidate');
 header('Pragma: no-cache');
@@ -180,7 +181,7 @@ if ($authenticated) {
             $e->getMessage()
         );
 
-        $error = 'Installationen kunde inte slutföras. Kontrollera serverloggen för mer information.';
+        $error = 'Installation could not be completed. Check the server log for more information.';
     }
 }
 
@@ -193,7 +194,7 @@ if ($authenticated) {
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <title>IO200 Analytics Installer</title>
+    <title><?= ioa_t('app_name') ?> Installer</title>
 
     <style>
 
@@ -536,7 +537,7 @@ if ($authenticated) {
         </div>
 
         <div class="brand-text">
-            <strong>IO200 Analytics</strong>
+            <strong><?= ioa_t('app_name') ?></strong>
             <span>Installation</span>
         </div>
 
@@ -554,17 +555,15 @@ if ($authenticated) {
                         🔐
                     </div>
 
-                    <h1>Admininloggning krävs</h1>
+                    <h1>Admin login required</h1>
 
                     <p class="lead">
-                        IO200 Analytics använder din befintliga
-                        IO200-administratörsinloggning.
+                        IO200 Analytics uses your existing IO200 Admin login.
                     </p>
 
                     <p>
-                        Logga in i IO200 Admin och kom sedan tillbaka hit.
-                        Installeraren behöver inga egna användarkonton eller
-                        lösenord.
+                        Log in to IO200 Admin and then return here. The installer
+                        does not require separate accounts or passwords.
                     </p>
 
                     <div class="button-row">
@@ -575,21 +574,20 @@ if ($authenticated) {
                             target="_blank"
                             rel="noopener"
                         >
-                            Öppna IO200 Admin
+                            Log in to IO200 Admin
                         </a>
 
                         <a
                             class="button secondary"
                             href="<?= h(currentInstallerUrl()) ?>"
                         >
-                            Jag är inloggad – försök igen
+                            I am logged in – try again
                         </a>
 
                     </div>
 
                     <p class="hint">
-                        Tips: Admin öppnas i en ny flik så att installeraren
-                        kan ligga kvar här.
+                        Admin opens in a new tab so the installer can remain open here.
                     </p>
 
                 </div>
@@ -597,12 +595,11 @@ if ($authenticated) {
             <?php else: ?>
 
                 <h1>
-                    Installera Analytics
+                    Install Analytics
                 </h1>
 
                 <p class="lead">
-                    Några sekunder från rå IO200 till härligt
-                    fotografiskt data-snusk. 📷
+                    Set up lightweight photo analytics for IO200 in a few seconds. 📷
                 </p>
 
                 <?php if ($error): ?>
@@ -622,7 +619,7 @@ if ($authenticated) {
                             </span>
 
                             <span>
-                                IO200-admin autentiserad
+                                IO200 Admin authenticated
                             </span>
 
                         </div>
@@ -634,8 +631,8 @@ if ($authenticated) {
                             </span>
 
                             <span>
-                                Databasanslutning
-                                <?= $dbConnected ? 'fungerar' : 'väntar' ?>
+                                Database connection
+                                <?= $dbConnected ? 'working' : 'waiting' ?>
                             </span>
 
                         </div>
@@ -648,8 +645,8 @@ if ($authenticated) {
 
                             <span>
                                 <?= $tableExists
-                                    ? 'Analytics-tabellen ioa_events finns'
-                                    : 'Analytics-tabellen behöver skapas'
+                                    ? 'Analytics table ioa_events exists'
+                                    : 'Analytics table needs to be created'
                                 ?>
                             </span>
 
@@ -663,8 +660,8 @@ if ($authenticated) {
 
                             <span>
                                 <?= $adminColumnExists
-                                    ? 'Admintrafik kan identifieras'
-                                    : 'Analytics-tabellen behöver uppdateras'
+                                    ? 'Admin traffic can be identified'
+                                    : 'Analytics table needs to be updated'
                                 ?>
                             </span>
 
@@ -687,8 +684,8 @@ if ($authenticated) {
                                 type="submit"
                             >
                                 <?= $tableExists
-                                    ? 'Uppdatera IO200 Analytics'
-                                    : 'Installera IO200 Analytics'
+                                    ? 'Update IO200 Analytics'
+                                    : 'Install IO200 Analytics'
                                 ?>
                             </button>
 
@@ -701,15 +698,15 @@ if ($authenticated) {
                             <div class="success-title">
 
                                 <?php if ($installedNow): ?>
-                                    Analytics är installerat! 🎉
+                                    Analytics is installed! 🎉
                                 <?php else: ?>
-                                    Analytics är redan installerat. ✓
+                                    Analytics is already installed. ✓
                                 <?php endif; ?>
 
                             </div>
 
                             <p>
-                                Databasen är redo. Lägg nu följande rad i
+                                The database is ready. Add the following line under
                                 <strong>IO200 → Settings → Code Injection</strong>:
                             </p>
 
@@ -721,14 +718,14 @@ if ($authenticated) {
                                     class="button"
                                     href="dashboard.php"
                                 >
-                                    Öppna Analytics
+                                    Open Analytics
                                 </a>
 
                                 <a
                                     class="button secondary"
                                     href="/admin"
                                 >
-                                    Öppna IO200 Admin
+                                    Open IO200 Admin
                                 </a>
 
                             </div>
@@ -744,7 +741,7 @@ if ($authenticated) {
         </div>
 
         <div class="footer">
-            IO200 Analytics · isolerad från IO200-kärnan · inga separata databasuppgifter
+            IO200 Analytics · isolated from IO200 core · no separate database credentials
         </div>
 
     </div>

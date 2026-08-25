@@ -1,6 +1,6 @@
 # Roadmap
 
-IO200 Analytics 1.0.0 provides the current collection, dashboard, visit, installation, and safe data-removal baseline. The items below are possible post-1.0 work, not release commitments.
+IO200 Analytics 1.0.0 provides the English-first external-testing baseline for collection, dashboard reporting, visits, installation, and safe data removal. The items below are possible post-1.0 work, not release commitments.
 
 ## Photo and album insights
 
@@ -22,4 +22,4 @@ IO200 Analytics 1.0.0 provides the current collection, dashboard, visit, install
 
 - Explore integration into IO200 Admin if IO200 provides a supported extension, listener, or UI-hook mechanism.
 - Introduce explicit schema migration/version tracking if future releases add more database changes or IOA-owned tables.
-- Consider localization if the dashboard needs languages beyond its current Swedish interface.
+- Consider additional languages and a deliberate language-selection design after the English-first external-testing cycle.

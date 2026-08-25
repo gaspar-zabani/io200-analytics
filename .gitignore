@@ -1,1 +1,8 @@
-﻿References/
+References/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.zip

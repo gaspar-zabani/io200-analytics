@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### External testing readiness
+
+- Made English the only selected and distributed UI language, independent of IO200 localization settings.
+- Localized all dashboard presentation through the IOA-owned English language file.
+- Added a concise public, data-free dashboard introduction for unauthenticated visitors.
+- Added dashboard feedback links and external-tester installation, privacy, removal, limitation, and package documentation.
+- Converted installer and uninstaller presentation text to English without changing their workflows or database behavior.
+
 ## 1.0.0 - 2026-08-24
 
 Initial release of IO200 Analytics.
@@ -34,4 +44,3 @@ Initial release of IO200 Analytics.
 ### Release documentation
 
 - Updated installation, authentication, event, dashboard, visit, privacy, limitation, and uninstallation documentation for IO200 Analytics 1.0.0.
-

@@ -4,6 +4,7 @@ session_start();
 
 require_once __DIR__ . '/../../system/config.php';
 require_once __DIR__ . '/../../../admin/sys/Autoload.php';
+require_once __DIR__ . '/localization.php';
 
 header('Cache-Control: no-store, no-cache, must-revalidate');
 header('Pragma: no-cache');
@@ -134,7 +135,7 @@ if ($authenticated) {
             $e->getMessage()
         );
 
-        $error = 'Avinstallationen kunde inte slutföras. Kontrollera uppgifterna och försök igen. Mer information finns i serverloggen.';
+        $error = 'Uninstallation could not be completed. Check the details and try again. More information is available in the server log.';
     }
 }
 
@@ -146,7 +147,7 @@ if ($authenticated) {
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <title>Avinstallera IO200 Analytics</title>
+    <title>Uninstall <?= ioa_t('app_name') ?></title>
 
     <style>
         * {
@@ -457,8 +458,8 @@ if ($authenticated) {
         <div class="brand-icon" aria-hidden="true">&#128202;</div>
 
         <div class="brand-text">
-            <strong>IO200 Analytics</strong>
-            <span>Avinstallation</span>
+            <strong><?= ioa_t('app_name') ?></strong>
+            <span>Uninstallation</span>
         </div>
     </div>
 
@@ -468,17 +469,15 @@ if ($authenticated) {
                 <div class="auth-box">
                     <div class="auth-symbol" aria-hidden="true">&#128274;</div>
 
-                    <h1>Admininloggning krävs</h1>
+                    <h1>Admin login required</h1>
 
                     <p class="lead">
-                        IO200 Analytics använder din befintliga
-                        IO200-administratörsinloggning.
+                        IO200 Analytics uses your existing IO200 Admin login.
                     </p>
 
                     <p>
-                        Logga in i IO200 Admin och kom sedan tillbaka hit.
-                        Avinstalleraren behöver inga egna användarkonton eller
-                        lösenord.
+                        Log in to IO200 Admin and then return here. The uninstaller
+                        does not require separate accounts or passwords.
                     </p>
 
                     <div class="button-row">
@@ -488,33 +487,32 @@ if ($authenticated) {
                             target="_blank"
                             rel="noopener"
                         >
-                            Öppna IO200 Admin
+                            Log in to IO200 Admin
                         </a>
 
                         <a
                             class="button secondary"
                             href="<?= h(currentUninstallerUrl()) ?>"
                         >
-                            Jag är inloggad – försök igen
+                            I am logged in – try again
                         </a>
                     </div>
 
                     <p class="hint">
-                        Admin öppnas i en ny flik så att avinstalleraren kan
-                        ligga kvar här.
+                        Admin opens in a new tab so the uninstaller can remain open here.
                     </p>
                 </div>
             <?php else: ?>
-                <h1>Avinstallera Analytics</h1>
+                <h1>Uninstall Analytics</h1>
 
                 <p class="lead">
-                    Välj om analysdata ska sparas för en framtida installation
-                    eller tas bort permanent.
+                    Choose whether to keep analytics data for a future installation
+                    or delete it permanently.
                 </p>
 
                 <div class="status-row">
                     <span class="status-icon" aria-hidden="true">&#10003;</span>
-                    <span>IO200-admin autentiserad</span>
+                    <span>IO200 Admin authenticated</span>
                 </div>
 
                 <?php if ($error): ?>
@@ -525,70 +523,69 @@ if ($authenticated) {
 
                 <?php if ($dataDeleted): ?>
                     <div class="success" role="status">
-                        <h2>Analytics-data har tagits bort</h2>
+                        <h2>Analytics data has been deleted</h2>
                         <p>
-                            Tabellen <code>ioa_events</code> har tagits bort.
-                            Inga IO200-kärntabeller eller filer har ändrats.
+                            The <code>ioa_events</code> table has been removed.
+                            No IO200 core tables or files were changed.
                         </p>
                     </div>
 
                     <div class="final-steps">
-                        <h2>Slutför avinstallationen manuellt</h2>
+                        <h2>Complete uninstallation manually</h2>
                         <ol>
                             <li>
-                                Ta bort IO200 Analytics script-tagg från
+                                Remove the IO200 Analytics script tag from
                                 IO200 Code Injection.
                             </li>
                             <li>
-                                Radera katalogen
+                                Delete the directory
                                 <code>/storage/custom/io200-analytics/</code>.
                             </li>
                         </ol>
                     </div>
                 <?php else: ?>
                     <div class="components">
-                        <h2>Det här ingår i IO200 Analytics</h2>
+                        <h2>IO200 Analytics components</h2>
                         <ul>
                             <li>
-                                Pluginfiler under
+                                Add-on files under
                                 <code>/storage/custom/io200-analytics/</code>
                             </li>
                             <li>
-                                Referensen till <code>analytics.js</code> i
+                                The <code>analytics.js</code> reference in
                                 IO200 Code Injection
                             </li>
                             <li>
-                                Analytics-tabellen <code>ioa_events</code>
+                                Analytics table <code>ioa_events</code>
                             </li>
                         </ul>
                     </div>
 
                     <section class="option">
-                        <h2>1. Behåll analytics-data</h2>
+                        <h2>1. Keep analytics data</h2>
                         <p>
-                            Databasen ändras inte. Historiken i
-                            <code>ioa_events</code> kan återanvändas om IO200
-                            Analytics installeras igen senare.
+                            The database is not changed. History in
+                            <code>ioa_events</code> can be reused if IO200
+                            Analytics is installed again later.
                         </p>
                         <p>
-                            Ta bort IOA:s script-tagg från IO200 Code Injection
-                            och radera sedan katalogen
-                            <code>/storage/custom/io200-analytics/</code>
-                            manuellt.
+                            Remove the IOA script tag from IO200 Code Injection,
+                            then manually delete the directory
+                            <code>/storage/custom/io200-analytics/</code>.
                         </p>
                     </section>
 
                     <section class="option danger">
-                        <h2>2. Radera analytics-data permanent</h2>
+                        <h2>2. Permanently delete analytics data</h2>
                         <p class="warning">
-                            Detta tar permanent bort all insamlad IO200
-                            Analytics-data och kan inte ångras.
+                            This permanently deletes all collected IO200
+                            Analytics data and cannot be undone.
                         </p>
 
                         <?php if ($dbConnected && $tableExists): ?>
                             <p>
-                                Endast tabellen <code>ioa_events</code> tas
-                                bort. IO200:s kärntabeller påverkas inte.
+                                Only the <code>ioa_events</code> table is removed.
+                                IO200 core tables are not affected.
                             </p>
 
                             <form method="post" autocomplete="off">
@@ -605,7 +602,7 @@ if ($authenticated) {
 
                                 <div class="field">
                                     <label for="confirmation">
-                                        Skriv DELETE för att bekräfta
+                                        Type DELETE to confirm
                                     </label>
                                     <input
                                         id="confirmation"
@@ -623,33 +620,33 @@ if ($authenticated) {
                                         class="button danger-button"
                                         type="submit"
                                     >
-                                        Radera analytics-data permanent
+                                        Permanently delete analytics data
                                     </button>
                                 </div>
                             </form>
                         <?php elseif ($dbConnected): ?>
                             <p>
-                                Tabellen <code>ioa_events</code> finns inte.
-                                Ingen analytics-data behöver tas bort.
+                                The <code>ioa_events</code> table does not exist.
+                                No analytics data needs to be removed.
                             </p>
 
                             <div class="final-steps">
-                                <h2>Slutför avinstallationen manuellt</h2>
+                                <h2>Complete uninstallation manually</h2>
                                 <ol>
                                     <li>
-                                        Ta bort IO200 Analytics script-tagg
-                                        från IO200 Code Injection.
+                                        Remove the IO200 Analytics script tag
+                                        from IO200 Code Injection.
                                     </li>
                                     <li>
-                                        Radera katalogen
+                                        Delete the directory
                                         <code>/storage/custom/io200-analytics/</code>.
                                     </li>
                                 </ol>
                             </div>
                         <?php else: ?>
                             <p>
-                                Databasstatus kunde inte kontrolleras. Ingen
-                                data har tagits bort.
+                                Database status could not be checked. No data
+                                has been deleted.
                             </p>
                         <?php endif; ?>
                     </section>
@@ -658,7 +655,7 @@ if ($authenticated) {
         </div>
 
         <div class="footer">
-            IO200 Analytics · endast uttryckligen ägda dataobjekt kan tas bort
+            IO200 Analytics · only explicitly owned data objects can be removed
         </div>
     </div>
 </div>

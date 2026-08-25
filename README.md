@@ -1,139 +1,112 @@
 # IO200 Analytics 1.0.0
 
-IO200 Analytics is a small, self-contained analytics add-on for an IO200 photo site. It records selected photo interactions in a dedicated database table and presents them in an administrator-only dashboard without modifying IO200 core files.
+IO200 Analytics is a lightweight analytics add-on for the self-hosted IO200 photo platform. It records selected photo interactions in the site's own database and presents them in an IO200 Admin-authenticated dashboard. It does not modify IO200 core files or send analytics to an external service.
 
-## Current v1.0 features
+This external-testing build has an English-only interface.
 
-- Tracks lightbox photo views, basket additions and removals, single-photo downloads, and completed album/batch downloads.
-- Stores the current page path, relevant photo and image/download data, a browser-tab session ID, and a client-supplied traffic-exclusion flag with each event.
-- Shows period-filtered KPI totals for photo views, sessions, basket additions, and downloaded photos.
-- Provides unified tabs for recent views, most-viewed photos, most-downloaded photos, and visits.
-- Derives readable album/page breadcrumbs from collected page paths.
-- Uses a consistent 20-item limit for photo rankings, recent views, and recent visits.
-- Reuses IO200 administrator authentication for the dashboard, installer, and uninstaller.
-- Includes authenticated installation and a conservative, confirmation-protected database removal workflow.
+## What IO200 Analytics does
 
-## Requirements and dependencies
+- Tracks lightbox photo views, basket additions/removals, single-photo downloads, and completed album/batch downloads.
+- Reports photo views, visits/sessions, basket activity, and downloaded photos for selectable periods.
+- Shows the 20 latest image views, 20 most-viewed images, 20 most-downloaded images, and 20 latest visits.
+- Derives readable album/page context from collected page paths.
 
-- An IO200 installation with the directory layout expected by the relative PHP includes.
-- PHP with `mysqli`, JSON support, sessions, and IO200's `AuthenticationService` and `ErrorInfo` classes.
-- MySQL or MariaDB with InnoDB, `utf8mb4`, and a JSON column type.
-- A modern browser with `fetch`, `MutationObserver`, `Map`, `crypto.randomUUID`, `sessionStorage`, and `localStorage`.
-- IO200's expected photo markup (`.photo-wrapper[data-photoid]`, `a.js-lightbox`, and `.gslide.current img`) for view and basket tracking.
-- IO200's `MyApp.hooks.onPhotoDownload` and `MyApp.hooks.onFinishedAlbumDownload` callbacks for download tracking.
+## Requirements
 
-There are no external packages, build steps, frameworks, or separate application credentials.
+- A self-hosted IO200 installation and access to IO200 Admin.
+- Permission to upload to `/storage/custom/` and edit IO200 Code Injection.
+- PHP with `mysqli`, JSON, and session support.
+- MySQL or MariaDB with InnoDB, `utf8mb4`, and JSON column support.
+- A modern browser and an IO200 version with the current photo markup and download hooks.
+
+There are no package-manager dependencies, build steps, external services, or separate database credentials.
 
 ## Installation
 
-1. Copy the repository files to `/storage/custom/io200-analytics/` in the IO200 installation.
+1. Extract the release ZIP and upload its `io200-analytics` directory to `/storage/custom/io200-analytics/`.
 2. Sign in to IO200 Admin.
 3. Open `/storage/custom/io200-analytics/install.php` and run the installer.
-4. Add this script reference under **IO200 → Settings → Code Injection**:
+4. In **IO200 Admin → Settings → Code Injection**, add:
 
    ```html
    <script src="/storage/custom/io200-analytics/analytics.js"></script>
    ```
 
-5. Open `/storage/custom/io200-analytics/dashboard.php` while still signed in to IO200 Admin.
+5. Save the settings, visit the public photo site, and exercise a few photo actions.
+6. Open `/storage/custom/io200-analytics/dashboard.php` while still signed in.
 
-The installer creates the dedicated `ioa_events` table. It can also add the `is_admin` column to an older IO200 Analytics table that does not yet have it. Reopening an already-current installation does not recreate its data.
+The installer creates `ioa_events` or adds the supported `is_admin` column to an older IOA table. Reopening a current installation does not recreate or clear existing data.
 
-## Authentication and dashboard access
+## Dashboard access
 
-`install.php`, `dashboard.php`, and `uninstall.php` validate IO200's existing `refreshtoken` through IO200's authentication service. They do not maintain separate IO200 Analytics accounts or passwords.
+The dashboard requires a valid IO200 Admin `refreshtoken`. IOA uses IO200's existing authentication service and has no separate accounts or passwords.
 
-Users without a valid IO200 Admin login see a login-required page with links to open `/admin/` in a new tab and retry the current page. There is no automatic redirect. Installer and uninstaller database-changing POST requests also require a server-side session CSRF token.
+Unauthenticated visitors see a short public product introduction and login, project-placeholder, and feedback links. They never receive analytics data. The installer and uninstaller use the same authentication check; database-changing forms also require a server-side session CSRF token.
 
-The event collector is a public POST endpoint used by the site-facing tracking script; it validates the accepted event types and payload sizes but does not require the Admin login.
+## Events and data collected
 
-## Events collected
-
-`analytics.js` and `collect.php` currently support:
-
-| Event | Trigger | Relevant stored data |
+| Event | Trigger | Stored data where applicable |
 | --- | --- | --- |
-| `photo_view` | A new image becomes current in the IO200 lightbox | Photo ID when URL mapping succeeds, image URL, page path, session ID |
-| `basket_add` | A photo changes to selected in the basket | Photo ID, image URL, page path, session ID |
-| `basket_remove` | A photo changes from selected to unselected | Photo ID, image URL, page path, session ID |
+| `photo_view` | A new image becomes current in the lightbox | Photo ID, image URL, page path, session ID |
+| `basket_add` | A photo becomes selected in the basket | Photo ID, image URL, page path, session ID |
+| `basket_remove` | A photo becomes unselected | Photo ID, image URL, page path, session ID |
 | `photo_download` | IO200 calls its single-photo download hook | Photo ID, download URL, page path, session ID |
-| `batch_download` | IO200 calls its completed album-download hook | Valid photo IDs and photo URLs in JSON batch data, page path, session ID |
+| `batch_download` | IO200 completes an album/batch download | Valid photo IDs and URLs in JSON, page path, session ID |
 
-The database assigns `created_at` when the collector inserts an event. Batch download totals count the valid photo IDs contained in each batch, not merely the number of batch events.
+Events also receive a server-side timestamp and client-supplied `is_admin` value. A visit groups events sharing a non-empty random ID held in browser `sessionStorage`; it represents one browser-tab session, not a unique person.
 
-## Dashboard
+The public `collect.php` endpoint accepts validated events from `analytics.js` and is intentionally not protected by Admin login.
 
-The dashboard shows four KPI cards:
+## Privacy limitations
 
-- `Bildvisningar`: all matching `photo_view` events.
-- `Sessioner`: distinct non-empty `session_id` values among matching events.
-- `Tillagda i basket`: matching `basket_add` events.
-- `Nedladdade bilder`: single-photo downloads plus the valid photo IDs in batch downloads.
+- IOA does not intentionally collect IP addresses, user agents, names, email addresses, fingerprints, cookies, or persistent visitor IDs.
+- It does collect event types, timestamps, paths, photo IDs, image/download URLs, per-tab session IDs, batch photo data, and a client-supplied traffic flag.
+- Data remains in the site's `ioa_events` table and is not transmitted to an external analytics provider by this code.
+- IOA has no consent management, retention schedule, anonymization, or automatic expiry.
+- Browser-originated events and the admin flag cannot be independently verified by the collector.
 
-Events marked with `is_admin = 1` are excluded by default through shared query filtering. The v1.0 dashboard intentionally does not expose the earlier experimental browser/admin traffic controls. The underlying field and query-parameter capability remain, but the flag is client supplied and is not authenticated Admin-session detection.
-
-### Period filtering
-
-All dashboard summaries, rankings, recent lists, and visit data use the selected period:
-
-- `Idag`: from the database server's current local calendar day start through now.
-- `7 dagar`, `30 dagar`, and `90 dagar`: rolling periods measured back from the database server's current time.
-- `All tid`: no date restriction.
-
-The default period is 30 days.
-
-### Photo analytics tabs
-
-- **Senaste visningarna** shows the 20 newest `photo_view` events with thumbnail, photo ID, timestamp, and album/page breadcrumb.
-- **Mest visade** shows up to 20 photos with views, distinct sessions, basket additions, downloads, and view-based percentages. Views are the default sort, and the displayed metric columns can be sorted in either direction.
-- **Mest nedladdade** shows the 20 photos with the most downloads, with views, sessions, basket additions, and percentages as supporting metrics.
-
-The tab headers preview the leading item for each photo category. A stored image URL is reused as a thumbnail when available. Breadcrumbs are generated from `page_path`, for example `/hh50/extrabilder` becomes `HH50 → Extrabilder`; v1.0 does not resolve authoritative album names from IO200.
-
-### Visit (`Besök`) analytics
-
-A visit is all matching events that share the same existing, non-empty `session_id`. The browser creates this random ID in `sessionStorage`, so it normally belongs to one browser tab/session. It is not a unique person or a durable visitor identity.
-
-The tab preview summarizes visits, photo views, downloads, and basket additions in the selected period. The list shows the 20 visits with the newest matching activity, including:
-
-- first and latest recorded activity within the selected period;
-- photo views and distinct page-path contexts;
-- basket additions and downloads when greater than zero;
-- up to three readable album/page contexts, followed by an additional-context count when needed.
-
-No duration is calculated. Events without a non-empty `session_id` remain included in applicable overall KPIs but cannot be assigned to a visit, so visit photo-view totals can be lower than the main photo-view KPI.
+Site operators are responsible for their privacy notice and applicable legal requirements.
 
 ## Uninstallation
 
-Open `/storage/custom/io200-analytics/uninstall.php` while authenticated in IO200 Admin. Two paths are available:
+1. While signed in, open `/storage/custom/io200-analytics/uninstall.php`.
+2. Keep `ioa_events` for a future installation or permanently delete it by typing `DELETE`.
+3. Remove the IOA script tag from **IO200 Admin → Settings → Code Injection**.
+4. Delete `/storage/custom/io200-analytics/`.
 
-1. **Keep analytics data:** leave the database unchanged, manually remove the Code Injection script reference, and manually delete the plugin directory. Keeping `ioa_events` allows its analytics history to be reused by a later installation.
-2. **Permanently delete analytics data:** submit the authenticated, CSRF-protected form after typing `DELETE`. The uninstaller can drop only the explicitly named IO200 Analytics table `ioa_events`.
+Only the explicitly owned `ioa_events` table can be dropped. The uninstaller does not remove its own files, edit Code Injection, or modify IO200 core data.
 
-In both cases, final cleanup remains manual:
+## Feedback / bug reports
 
-1. Remove the IO200 Analytics script tag from IO200 Code Injection.
-2. Delete `/storage/custom/io200-analytics/`.
+Email [ioa@jesperalvermark.se](mailto:ioa@jesperalvermark.se). Useful reports include IO200, PHP, database, and browser versions; reproduction steps; and relevant server-log messages. Do not send private visitor data or database exports through ordinary email.
 
-`uninstall.php` does not delete its own PHP/JavaScript files, remove the containing directory, edit Code Injection, or modify IO200 core tables.
+## Current limitations
 
-## Data and privacy considerations
+- The interface is English-only and has no language selector.
+- Tracking depends on current IO200 DOM selectors, lightbox URL matching, and download-hook names.
+- Admin/excluded-traffic classification is client supplied.
+- Sessions represent browser-tab activity, not people or exact time on site.
+- Breadcrumbs are path transformations, not authoritative IO200 metadata.
+- Photos are primarily identified by numeric IDs and stored URLs.
+- There is no general migration system, retention cleanup, export, automated test suite, release automation, or updater.
+- The public project/release link is currently a placeholder.
+- No software license has been selected; this remains a blocker for a general public release.
 
-- IO200 Analytics does not intentionally collect IP addresses, user-agent strings, names, email addresses, fingerprints, cookies, or persistent visitor IDs.
-- It does collect page paths, photo IDs, image/download URLs, interaction types, server-side timestamps, session IDs, batch photo data, and the client-supplied `is_admin` flag.
-- Session IDs are stored in `sessionStorage`; the browser-exclusion flag, when already configured, is read from `localStorage`.
-- Events are stored in the site's IO200 database in `ioa_events` and are not sent to an external analytics service by this code.
-- v1.0 does not provide consent management, a retention schedule, anonymization, or automatic data expiry. Site operators are responsible for their own legal and privacy requirements.
+## Intended release package
 
-## Known limitations
+```text
+io200-analytics/
+├── analytics.js
+├── collect.php
+├── dashboard.php
+├── install.php
+├── uninstall.php
+├── localization.php
+├── lang/
+│   └── en.php
+├── README.md
+├── CHANGELOG.md
+└── ROADMAP.md
+```
 
-- Tracking depends on current IO200 DOM selectors, lightbox URL matching, and global download-hook names.
-- The collector accepts browser-originated events and does not independently authenticate or verify them.
-- Admin/excluded-traffic classification is client supplied; there is no supported IO200 server-side Admin-session signal in this integration.
-- Sessions identify a browser-tab session, not a person. They are not merged across tabs or visits and do not support exact time-on-site claims.
-- Missing or empty historical session IDs cannot participate in visit analytics.
-- Breadcrumbs are readable transformations of paths, not authoritative IO200 album or collection metadata.
-- Photo analytics primarily identify photos by numeric IO200 ID and stored URLs; titles and filenames are not resolved.
-- Installation supports initial table creation and the existing `is_admin` upgrade only; there is no general migration/version table.
-- There is no built-in retention cleanup, export, automated test suite, or release automation.
-
+Do not distribute `References/`, `.git/`, `.gitignore`, editor/system metadata, logs, exports, test data, temporary files, ZIPs, or copied IO200 source. Nothing under `References/` is part of IO200 Analytics.
