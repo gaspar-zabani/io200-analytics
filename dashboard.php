@@ -353,6 +353,71 @@ function h($value)
     return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
 }
 
+function safeDashboardResourceUrl($value)
+{
+    if (!is_string($value) || $value === '' || preg_match('/[\x00-\x1F\x7F\\\\]/', $value)) {
+        return null;
+    }
+
+    $websiteParts = parse_url(WEBSITE_URL);
+    if ($websiteParts === false || !isset($websiteParts['scheme'], $websiteParts['host'])) {
+        return null;
+    }
+
+    $expectedScheme = strtolower($websiteParts['scheme']);
+    $expectedHost = strtolower(rtrim($websiteParts['host'], '.'));
+    $expectedPort = isset($websiteParts['port'])
+        ? (int)$websiteParts['port']
+        : ($expectedScheme === 'https' ? 443 : 80);
+
+    if (str_starts_with($value, '//')) {
+        return null;
+    }
+
+    $parts = parse_url($value);
+    if ($parts === false) {
+        return null;
+    }
+
+    if (!str_starts_with($value, '/')) {
+        if (!isset($parts['scheme'], $parts['host'])) {
+            return null;
+        }
+
+        $scheme = strtolower($parts['scheme']);
+        $host = strtolower(rtrim($parts['host'], '.'));
+        $port = isset($parts['port'])
+            ? (int)$parts['port']
+            : ($scheme === 'https' ? 443 : 80);
+
+        if (
+            !in_array($scheme, ['http', 'https'], true) ||
+            $scheme !== $expectedScheme ||
+            $host !== $expectedHost ||
+            $port !== $expectedPort
+        ) {
+            return null;
+        }
+    }
+
+    if (!isset($parts['path']) || !str_starts_with($parts['path'], '/') || str_starts_with($parts['path'], '//')) {
+        return null;
+    }
+
+    foreach (explode('/', $parts['path']) as $segment) {
+        $decodedSegment = rawurldecode($segment);
+        if (
+            $decodedSegment === '.' ||
+            $decodedSegment === '..' ||
+            preg_match('/[\x00-\x1F\x7F\\\\\/]/', $decodedSegment)
+        ) {
+            return null;
+        }
+    }
+
+    return $parts['path'];
+}
+
 function percent($part, $total)
 {
     if ($total <= 0) {
@@ -1010,6 +1075,41 @@ try {
     });
 
     $topPhotos = array_slice($photoStats, 0, 20);
+
+    if ($latestViewedPhoto) {
+        $latestViewedPhoto['image_url'] = safeDashboardResourceUrl(
+            $latestViewedPhoto['image_url'] ?? null
+        );
+    }
+
+    foreach ($recentPhotoViews as &$recentView) {
+        $recentView['image_url'] = safeDashboardResourceUrl(
+            $recentView['image_url'] ?? null
+        );
+    }
+    unset($recentView);
+
+    if ($mostViewedPhoto) {
+        $mostViewedPhoto['image_url'] = safeDashboardResourceUrl(
+            $mostViewedPhoto['image_url'] ?? null
+        );
+    }
+
+    if ($mostDownloadedPhoto) {
+        $mostDownloadedPhoto['image_url'] = safeDashboardResourceUrl(
+            $mostDownloadedPhoto['image_url'] ?? null
+        );
+    }
+
+    foreach ($topPhotos as &$photo) {
+        $photo['image_url'] = safeDashboardResourceUrl($photo['image_url'] ?? null);
+    }
+    unset($photo);
+
+    foreach ($topDownloadedPhotos as &$photo) {
+        $photo['image_url'] = safeDashboardResourceUrl($photo['image_url'] ?? null);
+    }
+    unset($photo);
 
     $mysqli->close();
 

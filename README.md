@@ -57,6 +57,8 @@ Events also receive a server-side timestamp and client-supplied `is_admin` value
 
 The public `collect.php` endpoint accepts validated events from `analytics.js` and is intentionally not protected by Admin login.
 
+The collector requires JSON POST requests from the origin configured in IO200's `WEBSITE_URL`. It validates `Origin`, falling back to a same-origin `Referer` only when `Origin` is absent; requests with neither header are rejected. Resource URLs must also be same-origin HTTP(S) URLs and are stored as root-relative paths without query strings or fragments. `WEBSITE_URL` must therefore match the scheme, host, and port visitors use for the site.
+
 ## Privacy limitations
 
 - IOA does not intentionally collect IP addresses, user agents, names, email addresses, fingerprints, cookies, or persistent visitor IDs.
@@ -64,6 +66,7 @@ The public `collect.php` endpoint accepts validated events from `analytics.js` a
 - Data remains in the site's `ioa_events` table and is not transmitted to an external analytics provider by this code.
 - IOA has no consent management, retention schedule, anonymization, or automatic expiry.
 - Browser-originated events and the admin flag cannot be independently verified by the collector.
+- Origin and Referer validation is defense-in-depth, not authentication: direct scripted clients can forge both headers. Application or web-server rate limiting remains a future hardening option.
 
 Site operators are responsible for their privacy notice and applicable legal requirements.
 
