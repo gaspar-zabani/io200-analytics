@@ -284,7 +284,7 @@ function renderAuthenticationRequired(): void
 
                         <a
                             class="auth-button secondary"
-                            href="#"
+                            href="https://github.com/gaspar-zabani/io200-analytics"
                         >
                             <?= ioa_t('get_ioa') ?>
                         </a>
