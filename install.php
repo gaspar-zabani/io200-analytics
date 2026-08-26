@@ -122,6 +122,7 @@ if ($authenticated) {
             $csrf = $_POST['csrf'] ?? '';
 
             if (
+                !is_string($csrf) ||
                 !$csrf ||
                 !hash_equals($_SESSION['ioa_installer_csrf'], $csrf)
             ) {
@@ -187,7 +188,7 @@ if ($authenticated) {
 
 ?>
 <!doctype html>
-<html lang="sv">
+<html lang="en">
 
 <head>
 
@@ -710,7 +711,7 @@ if ($authenticated) {
                                 <strong>IO200 → Settings → Code Injection</strong>:
                             </p>
 
-                            <code>&lt;script src="/storage/custom/io200-analytics/analytics.js"&gt;&lt;/script&gt;</code>
+                            <code>&lt;script src="/storage/custom/io200-analytics/analytics.js?v=1.0.0"&gt;&lt;/script&gt;</code>
 
                             <div class="button-row">
 

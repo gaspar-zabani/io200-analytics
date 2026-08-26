@@ -141,7 +141,7 @@ if ($authenticated) {
 
 ?>
 <!doctype html>
-<html lang="sv">
+<html lang="en">
 
 <head>
     <meta charset="utf-8">

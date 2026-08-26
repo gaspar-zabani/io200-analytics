@@ -318,28 +318,37 @@ function renderAuthenticationRequired(): void
 // IO200 admin authentication
 // --------------------------------------------------
 
-$AuthenticationService = new AuthenticationService(
-    CMS_SECRETKEY,
-    CMS_SECRETKEY,
-    'HS256',
-    dirname(__DIR__, 3)
-);
-
+$authenticated = false;
 $refreshToken = $_COOKIE['refreshtoken'] ?? null;
 
-if (!$refreshToken) {
-    http_response_code(403);
-    renderAuthenticationRequired();
+try {
+    if ($refreshToken) {
+        $AuthenticationService = new AuthenticationService(
+            CMS_SECRETKEY,
+            CMS_SECRETKEY,
+            'HS256',
+            dirname(__DIR__, 3)
+        );
+
+        $tokenData = $AuthenticationService->readUserToken($refreshToken);
+
+        if (
+            !ErrorInfo::isError($tokenData) &&
+            is_array($tokenData) &&
+            ($tokenData['type'] ?? null) === 'refresh' &&
+            !empty($tokenData['mail'])
+        ) {
+            $authenticated = true;
+        }
+    }
+} catch (Throwable $e) {
+    error_log(
+        '[IO200 Analytics] Dashboard authentication check failed: ' .
+        $e->getMessage()
+    );
 }
 
-$tokenData = $AuthenticationService->readUserToken($refreshToken);
-
-if (
-    ErrorInfo::isError($tokenData) ||
-    !is_array($tokenData) ||
-    ($tokenData['type'] ?? null) !== 'refresh' ||
-    empty($tokenData['mail'])
-) {
+if (!$authenticated) {
     http_response_code(403);
     renderAuthenticationRequired();
 }

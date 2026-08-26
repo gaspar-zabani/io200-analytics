@@ -7,7 +7,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function normalizeUrl(src) {
         if (!src) return null;
-        return new URL(src, window.location.origin).href;
+        try {
+            return new URL(src, window.location.origin).href;
+        } catch (error) {
+            return null;
+        }
     }
 	
 	function getSessionId() {
@@ -31,31 +35,28 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
     function trackEvent(type, data = {}) {
-const event = {
-    type: type,
-    timestamp: new Date().toISOString(),
-    page: window.location.pathname,
-    session_id: getSessionId(),
-    ...data,
-    is_admin: shouldIgnoreBrowser()
-};
+        try {
+            const event = {
+                type: type,
+                timestamp: new Date().toISOString(),
+                page: window.location.pathname,
+                session_id: getSessionId(),
+                ...data,
+                is_admin: shouldIgnoreBrowser()
+            };
 
-        console.log('[IO200 Analytics]', event);
-
-        fetch('/storage/custom/io200-analytics/collect.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(event)
-        })
-        .then(response => response.json())
-        .then(result => {
-            console.log('[IO200 Analytics] Collector response:', result);
-        })
-        .catch(error => {
-            console.error('[IO200 Analytics] Collector error:', error);
-        });
+            fetch('/storage/custom/io200-analytics/collect.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(event)
+            }).catch(function () {
+                // Analytics failures must not affect IO200 behavior.
+            });
+        } catch (error) {
+            // Analytics failures must not affect IO200 behavior.
+        }
     }
 
     document
@@ -72,12 +73,6 @@ const event = {
 
             IOA.photoMap.set(src, photoId);
         });
-
-    console.log(
-        '[IO200 Analytics] Photo map ready:',
-        IOA.photoMap.size,
-        'photos'
-    );
 
     function checkCurrentLightboxImage() {
 
@@ -112,6 +107,8 @@ const event = {
     });
 
     document.addEventListener('click', function(event) {
+
+        if (!(event.target instanceof Element)) return;
 
         const basket = event.target.closest('.action-basket');
         if (!basket) return;
@@ -150,25 +147,47 @@ trackEvent(
 
     if (window.MyApp && MyApp.hooks) {
 
+        const previousPhotoDownloadHook = MyApp.hooks.onPhotoDownload;
+        const previousAlbumDownloadHook = MyApp.hooks.onFinishedAlbumDownload;
+
         MyApp.hooks.onPhotoDownload = function(data) {
 
-            trackEvent('photo_download', {
-                photo_id: data.photo_id,
-                download_url: data.download_url,
-                mode: 'single'
-            });
+            const result = typeof previousPhotoDownloadHook === 'function'
+                ? previousPhotoDownloadHook.apply(this, arguments)
+                : undefined;
+
+            if (data && typeof data === 'object') {
+                trackEvent('photo_download', {
+                    photo_id: data.photo_id,
+                    download_url: data.download_url,
+                    mode: 'single'
+                });
+            }
+
+            return result;
         };
 
         MyApp.hooks.onFinishedAlbumDownload = function(data) {
 
-            trackEvent('batch_download', {
-                photo_ids: data.photo_ids,
-                photo_urls: data.photo_urls,
-                count: data.photo_ids.length
-            });
+            const result = typeof previousAlbumDownloadHook === 'function'
+                ? previousAlbumDownloadHook.apply(this, arguments)
+                : undefined;
+
+            if (
+                data &&
+                typeof data === 'object' &&
+                Array.isArray(data.photo_ids) &&
+                Array.isArray(data.photo_urls)
+            ) {
+                trackEvent('batch_download', {
+                    photo_ids: data.photo_ids,
+                    photo_urls: data.photo_urls,
+                    count: data.photo_ids.length
+                });
+            }
+
+            return result;
         };
     }
-
-    console.log('[IO200 Analytics] Prototype running');
 
 });

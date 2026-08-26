@@ -29,13 +29,15 @@ There are no package-manager dependencies, build steps, external services, or se
 4. In **IO200 Admin → Settings → Code Injection**, add:
 
    ```html
-   <script src="/storage/custom/io200-analytics/analytics.js"></script>
+   <script src="/storage/custom/io200-analytics/analytics.js?v=1.0.0"></script>
    ```
 
 5. Save the settings, visit the public photo site, and exercise a few photo actions.
 6. Open `/storage/custom/io200-analytics/dashboard.php` while still signed in.
 
 The installer creates `ioa_events` or adds the supported `is_admin` column to an older IOA table. Reopening a current installation does not recreate or clear existing data.
+
+The `v=1.0.0` query parameter prevents stale cached JavaScript during upgrades. Update it to the installed IOA release version whenever replacing `analytics.js`.
 
 ## Dashboard access
 
