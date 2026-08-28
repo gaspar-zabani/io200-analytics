@@ -385,7 +385,7 @@ function renderAuthenticationRequired(): void
                             <div class="auth-actions">
                                 <a
                                     class="auth-button"
-                                    href="https://github.com/gaspar-zabani/io200-analytics/releases/download/v1.1.0-beta.2/io200-analytics-v1.1.0-beta.2.zip"
+                                    href="https://github.com/gaspar-zabani/io200-analytics/releases/download/v1.1.0-beta.3/io200-analytics-v1.1.0-beta.3.zip"
                                 >
                                     Download IO200 Analytics (.zip)
                                 </a>
