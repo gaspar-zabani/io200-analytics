@@ -1,4 +1,4 @@
-# IO200 Analytics 1.0.0
+# IO200 Analytics
 
 IO200 Analytics is a lightweight analytics add-on for the self-hosted IO200 photo platform. It records selected photo interactions in the site's own database and presents them in an IO200 Admin-authenticated dashboard. It does not modify IO200 core files or send analytics to an external service.
 
@@ -23,13 +23,13 @@ There are no package-manager dependencies, build steps, external services, or se
 
 ## Installation
 
-1. Extract the release ZIP and upload its `io200-analytics` directory to `/storage/custom/io200-analytics/`.
+1. Download the [latest release](https://github.com/gaspar-zabani/io200-analytics/releases/latest), extract the ZIP, and upload its `io200-analytics` directory to `/storage/custom/io200-analytics/`.
 2. Sign in to IO200 Admin.
 3. Open `/storage/custom/io200-analytics/install.php` and run the installer.
 4. In **IO200 Admin → Settings → Code Injection**, add:
 
    ```html
-   <script src="/storage/custom/io200-analytics/analytics.js?v=1.0.0"></script>
+   <script src="/storage/custom/io200-analytics/analytics.js?v=RELEASE_VERSION"></script>
    ```
 
 5. Save the settings, visit the public photo site, and exercise a few photo actions.
@@ -37,13 +37,13 @@ There are no package-manager dependencies, build steps, external services, or se
 
 The installer creates `ioa_events` or adds the supported `is_admin` column to an older IOA table. Reopening a current installation does not recreate or clear existing data.
 
-The `v=1.0.0` query parameter prevents stale cached JavaScript during upgrades. Update it to the installed IOA release version whenever replacing `analytics.js`.
+Replace `RELEASE_VERSION` with the version shown for the release you installed. This query parameter prevents stale cached JavaScript during upgrades; update it whenever replacing `analytics.js`.
 
 ## Dashboard access
 
 The dashboard requires a valid IO200 Admin `refreshtoken`. IOA uses IO200's existing authentication service and has no separate accounts or passwords.
 
-Unauthenticated visitors see a short public product introduction and login, project-placeholder, and feedback links. They never receive analytics data. The installer and uninstaller use the same authentication check; database-changing forms also require a server-side session CSRF token.
+Unauthenticated visitors see a compact public product, download, and installation page with an IO200 Admin login action. They never receive analytics data. The installer and uninstaller use the same authentication check; database-changing forms also require a server-side session CSRF token.
 
 ## Events and data collected
 
@@ -94,13 +94,13 @@ Email [ioa@jesperalvermark.se](mailto:ioa@jesperalvermark.se). Useful reports in
 - Breadcrumbs are path transformations, not authoritative IO200 metadata.
 - Photos are primarily identified by numeric IDs and stored URLs.
 - There is no general migration system, retention cleanup, export, automated test suite, release automation, or updater.
-- The public project/release link is currently a placeholder.
-- No software license has been selected; this remains a blocker for a general public release.
 
 ## Intended release package
 
 ```text
 io200-analytics/
+├── assets/
+│   └── dashboard-preview.png
 ├── analytics.js
 ├── collect.php
 ├── dashboard.php

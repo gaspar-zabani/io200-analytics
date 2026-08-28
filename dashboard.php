@@ -61,7 +61,7 @@ function renderAuthenticationRequired(): void
 
             .auth-shell {
                 width: 100%;
-                max-width: 760px;
+                max-width: 1040px;
                 margin: 0 auto;
             }
 
@@ -117,6 +117,28 @@ function renderAuthenticationRequired(): void
 
             .auth-card-main {
                 padding: 38px;
+            }
+
+            .hero-grid {
+                display: grid;
+                grid-template-columns: minmax(0, .9fr) minmax(340px, 1.1fr);
+                gap: 38px;
+                align-items: center;
+            }
+
+            .preview-frame {
+                margin: 0;
+                overflow: hidden;
+                border: 1px solid #dfe1e5;
+                border-radius: 13px;
+                background: #f5f6f8;
+                box-shadow: 0 12px 30px rgba(32, 33, 36, .12);
+            }
+
+            .preview-frame img {
+                display: block;
+                width: 100%;
+                height: auto;
             }
 
             .auth-symbol {
@@ -204,14 +226,85 @@ function renderAuthenticationRequired(): void
                 line-height: 1.6;
             }
 
-            .auth-contact {
-                margin-top: 22px;
-                color: #74777c;
-                font-size: 14px;
+            .product-section {
+                padding: 32px 38px;
+                border-top: 1px solid #eceef1;
             }
 
-            .auth-contact a {
-                color: inherit;
+            .section-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 42px;
+            }
+
+            .product-section h2 {
+                margin: 0 0 14px;
+                font-size: 20px;
+            }
+
+            .capability-list,
+            .install-list {
+                margin: 0;
+                padding-left: 22px;
+                color: #4d5156;
+                line-height: 1.75;
+            }
+
+            .capability-list {
+                list-style: none;
+                padding-left: 0;
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 6px 18px;
+            }
+
+            .capability-list li::before {
+                content: "\2713";
+                margin-right: 8px;
+                color: #188038;
+                font-weight: 700;
+            }
+
+            .capability-list li:last-child {
+                grid-column: 1 / -1;
+            }
+
+            .install-panel {
+                padding: 24px 26px;
+                border: 1px solid #dfe1e5;
+                border-radius: 13px;
+                background: #f8f9fa;
+            }
+
+            code {
+                padding: 2px 5px;
+                border-radius: 4px;
+                background: #f1f3f4;
+                font-size: .9em;
+            }
+
+            .feedback-section {
+                margin-top: 26px;
+                padding-top: 22px;
+                border-top: 1px solid #eceef1;
+                color: #74777c;
+                font-size: 14px;
+                line-height: 1.55;
+            }
+
+            .feedback-section h2 {
+                margin: 0 0 6px;
+                color: #4d5156;
+                font-size: 16px;
+            }
+
+            .feedback-section p {
+                margin: 0 0 8px;
+            }
+
+            .feedback-section a {
+                color: #4d5156;
+                font-weight: 650;
             }
 
             @media (max-width: 600px) {
@@ -221,6 +314,14 @@ function renderAuthenticationRequired(): void
 
                 .auth-card-main {
                     padding: 27px 22px;
+                }
+
+                .product-section {
+                    padding: 26px 22px;
+                }
+
+                .install-panel {
+                    padding: 21px 20px;
                 }
 
                 h1 {
@@ -233,6 +334,25 @@ function renderAuthenticationRequired(): void
 
                 .auth-button {
                     width: 100%;
+                }
+
+                .capability-list {
+                    grid-template-columns: 1fr;
+                }
+
+                .capability-list li:last-child {
+                    grid-column: auto;
+                }
+            }
+
+            @media (max-width: 820px) {
+                .hero-grid,
+                .section-grid {
+                    grid-template-columns: 1fr;
+                }
+
+                .hero-grid {
+                    gap: 28px;
                 }
             }
         </style>
@@ -253,57 +373,88 @@ function renderAuthenticationRequired(): void
 
             <div class="auth-card">
                 <div class="auth-card-main">
-                    <div class="auth-symbol" aria-hidden="true">
-                        &#128274;
+                    <div class="hero-grid">
+                        <div>
+                            <h1><?= ioa_t('app_name') ?></h1>
+
+                            <p class="auth-intro">
+                                <?= ioa_t('product_intro') ?>
+                                <?= ioa_t('product_activity_summary') ?>
+                            </p>
+
+                            <div class="auth-actions">
+                                <a
+                                    class="auth-button"
+                                    href="https://github.com/gaspar-zabani/io200-analytics/releases/download/v1.1.0-beta.2/io200-analytics-v1.1.0-beta.2.zip"
+                                >
+                                    Download IO200 Analytics (.zip)
+                                </a>
+
+                                <a
+                                    class="auth-button secondary"
+                                    href="https://github.com/gaspar-zabani/io200-analytics"
+                                >
+                                    View project on GitHub
+                                </a>
+                            </div>
+                        </div>
+
+                        <figure class="preview-frame">
+                            <img
+                                src="assets/dashboard-preview.png"
+                                alt="IO200 Analytics dashboard showing photo views, downloads, basket activity, and visits"
+                            >
+                        </figure>
+                    </div>
+                </div>
+
+                <section class="product-section section-grid">
+                    <div>
+                        <h2>See what happens in your galleries</h2>
+                        <ul class="capability-list">
+                            <li>Photo views</li>
+                            <li>Downloads</li>
+                            <li>Basket activity</li>
+                            <li>Visits and gallery activity</li>
+                            <li>Self-hosted, without an external analytics service</li>
+                        </ul>
                     </div>
 
-                    <h1><?= ioa_t('app_name') ?></h1>
+                    <div class="install-panel">
+                        <h2>Install in a few steps</h2>
+                        <ol class="install-list">
+                            <li>Download the ZIP.</li>
+                            <li>Extract the <code>io200-analytics</code> folder.</li>
+                            <li>Upload it to <code>/storage/custom/</code>.</li>
+                            <li>Open <code>/storage/custom/io200-analytics/install.php</code>.</li>
+                            <li>Follow the on-screen instructions.</li>
+                        </ol>
+                    </div>
+                </section>
 
-                    <p class="auth-intro">
-                        <?= ioa_t('product_intro') ?>
-                        <?= ioa_t('product_activity_summary') ?>
-                    </p>
-
-                    <p class="auth-lead">
-                        <?= ioa_t('auth_required_title') ?>
-                    </p>
-
-                    <p class="auth-message">
-                        <?= ioa_t('auth_required_message') ?>
-                    </p>
+                <section class="product-section">
+                    <p class="auth-lead"><?= ioa_t('auth_required_title') ?></p>
+                    <p class="auth-message"><?= ioa_t('auth_required_message') ?></p>
 
                     <div class="auth-actions">
-                        <a
-                            class="auth-button"
-                            href="/admin/"
-                            target="_blank"
-                            rel="noopener"
-                        >
+                        <a class="auth-button secondary" href="/admin/" target="_blank" rel="noopener">
                             <?= ioa_t('auth_open_admin') ?>
                         </a>
-
-                        <a
-                            class="auth-button secondary"
-                            href="https://github.com/gaspar-zabani/io200-analytics"
-                        >
-                            <?= ioa_t('get_ioa') ?>
-                        </a>
-
                         <a class="auth-button secondary" href="<?= $retryUrl ?>">
                             <?= ioa_t('auth_retry') ?>
                         </a>
                     </div>
 
-                    <p class="auth-hint">
-                        <?= ioa_t('auth_new_tab_hint') ?>
-                    </p>
-
-                    <p class="auth-contact">
-                        <a href="mailto:ioa@jesperalvermark.se">
-                            <?= ioa_t('feedback') ?>: ioa@jesperalvermark.se
-                        </a>
-                    </p>
-                </div>
+                    <p class="auth-hint"><?= ioa_t('auth_new_tab_hint') ?></p>
+                    <div class="feedback-section">
+                        <h2>Testing IO200 Analytics?</h2>
+                        <p>
+                            I'd love to hear what works, what doesn't, and what could be clearer.
+                            Even brief feedback is useful.
+                        </p>
+                        <a href="mailto:ioa@jesperalvermark.se">Send feedback</a>
+                    </div>
+                </section>
             </div>
         </main>
     </body>
