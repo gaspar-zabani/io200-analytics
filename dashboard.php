@@ -854,6 +854,7 @@ try {
             'photo_views' => (int)$row['photo_views'],
             'basket_adds' => (int)$row['basket_adds'],
             'downloads' => (int)$row['single_downloads'],
+            'selection_downloads' => [],
             'page_paths' => []
         ];
     }
@@ -871,11 +872,14 @@ try {
                 session_id,
                 event_type,
                 page_path,
-                batch_data
+                batch_data,
+                created_at,
+                id
             FROM ioa_events
             WHERE session_id IN (" . implode(', ', $escapedSessionIds) . ")
               {$whereAdmin}
               {$whereDate}
+            ORDER BY created_at ASC, id ASC
         ");
 
         while ($row = $result->fetch_assoc()) {
@@ -902,7 +906,16 @@ try {
                     isset($batch['photo_ids']) &&
                     is_array($batch['photo_ids'])
                 ) {
-                    $recentVisits[$sessionId]['downloads'] += count($batch['photo_ids']);
+                    $photoIds = array_values($batch['photo_ids']);
+                    $photoCount = count($photoIds);
+
+                    $recentVisits[$sessionId]['downloads'] += $photoCount;
+                    $recentVisits[$sessionId]['selection_downloads'][] = [
+                        'photo_ids' => $photoIds,
+                        'photo_count' => $photoCount,
+                        'page_context' => readablePagePath($row['page_path'] ?? null),
+                        'created_at' => $row['created_at']
+                    ];
                 }
             }
         }
@@ -1140,9 +1153,20 @@ try {
             continue;
         }
 
-        foreach ($batch['photo_ids'] as $photoId) {
+        foreach ($batch['photo_ids'] as $index => $photoId) {
 
             $photoId = (string)$photoId;
+            $imageUrl = null;
+
+            if (
+                isset($batch['image_urls']) &&
+                is_array($batch['image_urls']) &&
+                array_key_exists($index, $batch['image_urls']) &&
+                is_string($batch['image_urls'][$index]) &&
+                $batch['image_urls'][$index] !== ''
+            ) {
+                $imageUrl = $batch['image_urls'][$index];
+            }
 
             if (!isset($photoStats[$photoId])) {
                 $photoStats[$photoId] = [
@@ -1151,8 +1175,10 @@ try {
                     'sessions' => 0,
                     'basket' => 0,
                     'downloads' => 0,
-                    'image_url' => null
+                    'image_url' => $imageUrl
                 ];
+            } elseif (empty($photoStats[$photoId]['image_url']) && $imageUrl !== null) {
+                $photoStats[$photoId]['image_url'] = $imageUrl;
             }
 
             $photoStats[$photoId]['downloads']++;
@@ -1618,6 +1644,75 @@ try {
 
         .visit-item__contexts {
             margin-top: 7px;
+        }
+
+        .selection-downloads {
+            display: grid;
+            gap: 8px;
+
+            margin-top: 12px;
+        }
+
+        .selection-download {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+
+            padding: 10px;
+
+            background: #f7f7f8;
+            border-radius: 7px;
+        }
+
+        .selection-download__icon {
+            display: grid;
+            place-items: center;
+            flex: 0 0 auto;
+
+            width: 30px;
+            height: 30px;
+
+            color: #5f6368;
+        }
+
+        .selection-download__icon svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .selection-download__body {
+            min-width: 0;
+        }
+
+        .selection-download__title {
+            font-size: 14px;
+            font-weight: 650;
+        }
+
+        .selection-download__meta {
+            margin-top: 2px;
+
+            color: #74777c;
+
+            font-size: 12px;
+        }
+
+        .selection-download details {
+            margin-top: 6px;
+
+            font-size: 12px;
+        }
+
+        .selection-download summary {
+            color: #5f6368;
+            cursor: pointer;
+        }
+
+        .selection-download__ids {
+            margin: 6px 0 0;
+
+            color: #5f6368;
+            overflow-wrap: anywhere;
         }
 
         .visit-context-list {
@@ -2525,6 +2620,55 @@ try {
                                         <div class="photo-item__meta">&ndash;</div>
                                     <?php endif; ?>
                                 </div>
+
+                                <?php if ($visit['selection_downloads']): ?>
+                                    <div class="selection-downloads">
+                                        <?php foreach ($visit['selection_downloads'] as $selection): ?>
+                                            <div class="selection-download">
+                                                <span class="selection-download__icon" aria-hidden="true">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                                        <path d="M12 3v11m0 0 4-4m-4 4-4-4" />
+                                                        <path d="M5 17v3h14v-3" />
+                                                    </svg>
+                                                </span>
+
+                                                <div class="selection-download__body">
+                                                    <div class="selection-download__title">
+                                                        <?= ioa_t('selection_download') ?>
+                                                    </div>
+                                                    <div class="selection-download__meta">
+                                                        <?= $selection['page_context'] !== null
+                                                            ? h($selection['page_context'])
+                                                            : '&ndash;' ?>
+                                                        &middot;
+                                                        <?= $selection['photo_count'] === 1
+                                                            ? ioa_t('one_selected_photo')
+                                                            : sprintf(
+                                                                ioa_t('selected_photos_count'),
+                                                                $selection['photo_count']
+                                                            ) ?>
+                                                        &middot;
+                                                        <time datetime="<?= h($selection['created_at']) ?>">
+                                                            <?= h($selection['created_at']) ?>
+                                                        </time>
+                                                    </div>
+
+                                                    <details>
+                                                        <summary>
+                                                            <?= $selection['photo_count'] === 1
+                                                                ? ioa_t('show_photo')
+                                                                : ioa_t('show_selected_photos') ?>
+                                                        </summary>
+                                                        <p class="selection-download__ids">
+                                                            <?= ioa_t('selected_photo_ids') ?>:
+                                                            <?= h(implode(', ', $selection['photo_ids'])) ?>
+                                                        </p>
+                                                    </details>
+                                                </div>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                <?php endif; ?>
                             </article>
                         <?php endforeach; ?>
                     </div>

@@ -2,6 +2,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const IOA = {
         photoMap: new Map(),
+        photoImageMap: new Map(),
         lastLightboxSrc: null
     };
 
@@ -109,6 +110,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!src || !photoId) return;
 
             IOA.photoMap.set(src, photoId);
+            IOA.photoImageMap.set(String(photoId), src);
         });
     }
 
@@ -207,6 +209,8 @@ trackEvent(
             if (data && typeof data === 'object') {
                 trackEvent('photo_download', {
                     photo_id: data.photo_id,
+                    image_url:
+                        IOA.photoImageMap.get(String(data.photo_id)) || null,
                     download_url: data.download_url,
                     mode: 'single'
                 });
@@ -230,6 +234,9 @@ trackEvent(
                 trackEvent('batch_download', {
                     photo_ids: data.photo_ids,
                     photo_urls: data.photo_urls,
+                    image_urls: data.photo_ids.map(function(photoId) {
+                        return IOA.photoImageMap.get(String(photoId)) || null;
+                    }),
                     count: data.photo_ids.length
                 });
             }

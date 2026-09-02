@@ -53,5 +53,11 @@ return [
     'first_activity' => 'First activity',
     'latest_activity' => 'Latest activity',
     'albums_pages' => 'Albums/pages',
+    'selection_download' => 'Selection download',
+    'one_selected_photo' => '1 photo',
+    'selected_photos_count' => '%d photos',
+    'show_photo' => 'Show photo',
+    'show_selected_photos' => 'Show selected photos',
+    'selected_photo_ids' => 'Selected Photo IDs',
     'more' => 'more',
 ];

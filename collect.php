@@ -199,25 +199,42 @@ if ($type === 'batch_download') {
 
     $photoIds = $data['photo_ids'] ?? [];
     $photoUrls = $data['photo_urls'] ?? [];
+    $photoImageUrls = $data['image_urls'] ?? null;
 
-    if (!is_array($photoIds) || !is_array($photoUrls)) {
+    if (
+        !is_array($photoIds) ||
+        !is_array($photoUrls) ||
+        ($photoImageUrls !== null && !is_array($photoImageUrls))
+    ) {
         respond(400, [
             'ok' => false,
             'error' => 'Invalid batch data'
         ]);
     }
 
-    if (count($photoIds) > 500 || count($photoUrls) > 500) {
+    if (
+        count($photoIds) > 500 ||
+        count($photoUrls) > 500 ||
+        ($photoImageUrls !== null && count($photoImageUrls) > 500)
+    ) {
         respond(400, [
             'ok' => false,
             'error' => 'Batch too large'
         ]);
     }
 
+    if ($photoImageUrls !== null && count($photoImageUrls) !== count($photoIds)) {
+        respond(400, ['ok' => false, 'error' => 'Invalid batch image URLs']);
+    }
+
     $cleanPhotoIds = [];
 
     foreach ($photoIds as $id) {
         if (!is_numeric($id)) {
+            if ($photoImageUrls !== null) {
+                respond(400, ['ok' => false, 'error' => 'Invalid batch photo ID']);
+            }
+
             continue;
         }
 
@@ -225,6 +242,8 @@ if ($type === 'batch_download') {
 
         if ($id > 0) {
             $cleanPhotoIds[] = $id;
+        } elseif ($photoImageUrls !== null) {
+            respond(400, ['ok' => false, 'error' => 'Invalid batch photo ID']);
         }
     }
 
@@ -243,11 +262,41 @@ if ($type === 'batch_download') {
         $cleanPhotoUrls[] = $cleanUrl;
     }
 
-    $batchData = json_encode([
+    $cleanPhotoImageUrls = null;
+
+    if ($photoImageUrls !== null) {
+        $cleanPhotoImageUrls = [];
+
+        foreach ($photoImageUrls as $url) {
+            if ($url === null) {
+                $cleanPhotoImageUrls[] = null;
+                continue;
+            }
+
+            if (!is_string($url) || strlen($url) > 2000) {
+                respond(400, ['ok' => false, 'error' => 'Invalid batch image URL']);
+            }
+
+            $cleanUrl = normalizeResourcePath($url, $expectedOrigin);
+            if ($cleanUrl === null) {
+                respond(400, ['ok' => false, 'error' => 'Invalid batch image URL']);
+            }
+
+            $cleanPhotoImageUrls[] = $cleanUrl;
+        }
+    }
+
+    $batchPayload = [
         'photo_ids' => $cleanPhotoIds,
         'photo_urls' => $cleanPhotoUrls,
         'count' => count($cleanPhotoIds)
-    ]);
+    ];
+
+    if ($cleanPhotoImageUrls !== null) {
+        $batchPayload['image_urls'] = $cleanPhotoImageUrls;
+    }
+
+    $batchData = json_encode($batchPayload);
 }
 
 try {
