@@ -59,9 +59,46 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    document
-        .querySelectorAll('.photo-wrapper[data-photoid]')
-        .forEach(function(wrapper) {
+    // Track visits to individual IO200 Photo Pages.
+    const cmsMeta = document.querySelector('meta[name="cms"][data-photo]');
+
+    if (
+        document.body.classList.contains('template-photo') &&
+        cmsMeta &&
+        cmsMeta.dataset.photo
+    ) {
+        const photoId = cmsMeta.dataset.photo;
+
+        const mainPhotoLink = document.querySelector(
+            '.photo-image .photo-wrapper[data-photoid="' + photoId + '"]'
+        )?.closest('a.js-lightbox');
+
+        trackEvent('photo_view', {
+            photo_id: photoId,
+            image_url: mainPhotoLink
+                ? normalizeUrl(mainPhotoLink.getAttribute('href'))
+                : null,
+            source: 'photo_page'
+        });
+    }
+
+    function registerPhotoWrappers(root) {
+        const wrappers = [];
+
+        if (
+            root instanceof Element &&
+            root.matches('.photo-wrapper[data-photoid]')
+        ) {
+            wrappers.push(root);
+        }
+
+        root
+            .querySelectorAll('.photo-wrapper[data-photoid]')
+            .forEach(function(wrapper) {
+                wrappers.push(wrapper);
+            });
+
+        wrappers.forEach(function(wrapper) {
 
             const link = wrapper.closest('a.js-lightbox');
             if (!link) return;
@@ -73,6 +110,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
             IOA.photoMap.set(src, photoId);
         });
+    }
+
+    registerPhotoWrappers(document);
 
     function checkCurrentLightboxImage() {
 
@@ -95,7 +135,15 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    const lightboxObserver = new MutationObserver(function() {
+    const lightboxObserver = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            mutation.addedNodes.forEach(function(node) {
+                if (node instanceof Element) {
+                    registerPhotoWrappers(node);
+                }
+            });
+        });
+
         checkCurrentLightboxImage();
     });
 
