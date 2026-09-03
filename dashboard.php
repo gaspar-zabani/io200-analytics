@@ -1262,6 +1262,50 @@ try {
 
     $topPhotos = array_slice($photoStats, 0, 20);
 
+    // Current IO200 titles for the two full photo ranking tables.
+    $rankingPhotoIds = array_values(array_unique(array_map(
+        'intval',
+        array_merge(
+            array_column($topPhotos, 'photo_id'),
+            array_column($topDownloadedPhotos, 'photo_id')
+        )
+    )));
+    $photoTitles = [];
+
+    if ($rankingPhotoIds) {
+        $placeholders = implode(',', array_fill(0, count($rankingPhotoIds), '?'));
+        $stmt = $mysqli->prepare("
+            SELECT id, title
+            FROM cms_photos
+            WHERE id IN ({$placeholders})
+        ");
+        $stmt->bind_param(str_repeat('i', count($rankingPhotoIds)), ...$rankingPhotoIds);
+        $stmt->execute();
+        $stmt->bind_result($titlePhotoId, $titleValue);
+
+        while ($stmt->fetch()) {
+            $title = is_string($titleValue)
+                ? trim($titleValue)
+                : '';
+
+            if ($title !== '') {
+                $photoTitles[(string)$titlePhotoId] = $title;
+            }
+        }
+
+        $stmt->close();
+    }
+
+    foreach ($topPhotos as &$photo) {
+        $photo['title'] = $photoTitles[$photo['photo_id']] ?? null;
+    }
+    unset($photo);
+
+    foreach ($topDownloadedPhotos as &$photo) {
+        $photo['title'] = $photoTitles[$photo['photo_id']] ?? null;
+    }
+    unset($photo);
+
     if ($latestViewedPhoto) {
         $latestViewedPhoto['image_url'] = safeDashboardResourceUrl(
             $latestViewedPhoto['image_url'] ?? null
@@ -2341,6 +2385,12 @@ try {
                                         <?= ioa_t('ioa_photo_id') ?>
                                     </div>
 
+                                    <?php if (!empty($photo['title'])): ?>
+                                        <div class="photo-item__meta photo-item__meta--truncate">
+                                            <?= h($photo['title']) ?>
+                                        </div>
+                                    <?php endif; ?>
+
                                 </div>
 
                             </div>
@@ -2462,6 +2512,11 @@ try {
                                                 <div class="photo-item__meta">
                                                     <?= ioa_t('ioa_photo_id') ?>
                                                 </div>
+                                                <?php if (!empty($photo['title'])): ?>
+                                                    <div class="photo-item__meta photo-item__meta--truncate">
+                                                        <?= h($photo['title']) ?>
+                                                    </div>
+                                                <?php endif; ?>
                                             </div>
                                         </div>
                                     </td>
