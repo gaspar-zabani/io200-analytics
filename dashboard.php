@@ -625,6 +625,32 @@ function readablePagePath($pagePath)
     return implode(' → ', $labels);
 }
 
+function formatActivityTimestamp($timestamp)
+{
+    if (!is_string($timestamp) || trim($timestamp) === '') {
+        return null;
+    }
+
+    try {
+        $date = new DateTimeImmutable($timestamp);
+    } catch (Throwable $e) {
+        return $timestamp;
+    }
+
+    $today = new DateTimeImmutable('today', $date->getTimezone());
+    $dateKey = $date->format('Y-m-d');
+
+    if ($dateKey === $today->format('Y-m-d')) {
+        return ioa_translate('period_today') . ', ' . $date->format('H:i');
+    }
+
+    if ($dateKey === $today->modify('-1 day')->format('Y-m-d')) {
+        return ioa_translate('yesterday') . ', ' . $date->format('H:i');
+    }
+
+    return $date->format('M j, H:i');
+}
+
 // --------------------------------------------------
 // Period filter
 // --------------------------------------------------
@@ -643,29 +669,11 @@ if (!array_key_exists($period, $allowedPeriods)) {
     $period = '30';
 }
 
-$allowedSorts = [
-    'views' => ioa_translate('views'),
-    'sessions' => ioa_translate('metric_sessions'),
-    'basket' => ioa_translate('metric_basket'),
-    'downloads' => ioa_translate('metric_downloads')
-];
-
-$sort = $_GET['sort'] ?? 'views';
-$direction = $_GET['direction'] ?? 'desc';
-
-if (!array_key_exists($sort, $allowedSorts)) {
-    $sort = 'views';
-}
-
-if (!in_array($direction, ['asc', 'desc'], true)) {
-    $direction = 'desc';
-}
-
-$allowedPhotoTabs = ['latest', 'views', 'downloads', 'visits'];
-$photoTab = $_GET['photo_tab'] ?? 'latest';
+$allowedPhotoTabs = ['views', 'downloads', 'visits'];
+$photoTab = $_GET['photo_tab'] ?? 'views';
 
 if (!in_array($photoTab, $allowedPhotoTabs, true)) {
-    $photoTab = 'latest';
+    $photoTab = 'views';
 }
 
 $includeAdmin = ($_GET['include_admin'] ?? '') === '1';
@@ -938,25 +946,15 @@ try {
         SELECT
             photo_id,
             image_url,
-            page_path,
             created_at
         FROM ioa_events
         WHERE event_type = 'photo_view'
           {$whereAdmin}
-          {$whereDate}
         ORDER BY created_at DESC, id DESC
         LIMIT 1
     ");
 
     $latestViewedPhoto = $result->fetch_assoc();
-
-    if ($latestViewedPhoto) {
-        // No stable album lookup is available here, so retain the event's own
-        // context and turn its path into a human-readable breadcrumb.
-        $latestViewedPhoto['page_context'] = readablePagePath(
-            $latestViewedPhoto['page_path'] ?? null
-        );
-    }
 
     if (
         $latestViewedPhoto &&
@@ -972,7 +970,6 @@ try {
               AND image_url IS NOT NULL
               AND image_url <> ''
               {$whereAdmin}
-              {$whereDate}
             ORDER BY created_at DESC, id DESC
             LIMIT 1
         ");
@@ -982,54 +979,6 @@ try {
         if ($imageRow) {
             $latestViewedPhoto['image_url'] = $imageRow['image_url'];
         }
-    }
-
-    // --------------------------------------------------
-    // Recent photo views
-    // --------------------------------------------------
-
-    $recentPhotoViews = [];
-
-    $result = $mysqli->query("
-        SELECT
-            photo_id,
-            image_url,
-            page_path,
-            created_at
-        FROM ioa_events
-        WHERE event_type = 'photo_view'
-          {$whereAdmin}
-          {$whereDate}
-        ORDER BY created_at DESC, id DESC
-        LIMIT 20
-    ");
-
-    while ($row = $result->fetch_assoc()) {
-        $row['page_context'] = readablePagePath($row['page_path'] ?? null);
-
-        if (empty($row['image_url']) && !empty($row['photo_id'])) {
-            $photoId = (int)$row['photo_id'];
-
-            $imageResult = $mysqli->query("
-                SELECT image_url
-                FROM ioa_events
-                WHERE photo_id = {$photoId}
-                  AND image_url IS NOT NULL
-                  AND image_url <> ''
-                  {$whereAdmin}
-                  {$whereDate}
-                ORDER BY created_at DESC, id DESC
-                LIMIT 1
-            ");
-
-            $imageRow = $imageResult->fetch_assoc();
-
-            if ($imageRow) {
-                $row['image_url'] = $imageRow['image_url'];
-            }
-        }
-
-        $recentPhotoViews[] = $row;
     }
 
     // --------------------------------------------------
@@ -1248,13 +1197,11 @@ try {
     $mostDownloadedPhoto = $photosByDownloads[0] ?? null;
     $topDownloadedPhotos = array_slice($photosByDownloads, 0, 20);
 
-    // Preserve the existing user-selected sort for the views table.
-    usort($photoStats, function ($a, $b) use ($sort, $direction) {
+    // Most viewed is always ranked by views descending.
+    usort($photoStats, function ($a, $b) {
 
-        if ($a[$sort] !== $b[$sort]) {
-            return $direction === 'asc'
-                ? $a[$sort] <=> $b[$sort]
-                : $b[$sort] <=> $a[$sort];
+        if ($a['views'] !== $b['views']) {
+            return $b['views'] <=> $a['views'];
         }
 
         return (int)$a['photo_id'] <=> (int)$b['photo_id'];
@@ -1262,24 +1209,27 @@ try {
 
     $topPhotos = array_slice($photoStats, 0, 20);
 
-    // Current IO200 titles for the two full photo ranking tables.
-    $rankingPhotoIds = array_values(array_unique(array_map(
+    // Current IO200 titles for rankings and the live hero card.
+    $titlePhotoIds = array_values(array_unique(array_filter(array_map(
         'intval',
         array_merge(
             array_column($topPhotos, 'photo_id'),
-            array_column($topDownloadedPhotos, 'photo_id')
+            array_column($topDownloadedPhotos, 'photo_id'),
+            [$latestViewedPhoto['photo_id'] ?? null]
         )
-    )));
+    ), static function ($photoId) {
+        return $photoId > 0;
+    })));
     $photoTitles = [];
 
-    if ($rankingPhotoIds) {
-        $placeholders = implode(',', array_fill(0, count($rankingPhotoIds), '?'));
+    if ($titlePhotoIds) {
+        $placeholders = implode(',', array_fill(0, count($titlePhotoIds), '?'));
         $stmt = $mysqli->prepare("
             SELECT id, title
             FROM cms_photos
             WHERE id IN ({$placeholders})
         ");
-        $stmt->bind_param(str_repeat('i', count($rankingPhotoIds)), ...$rankingPhotoIds);
+        $stmt->bind_param(str_repeat('i', count($titlePhotoIds)), ...$titlePhotoIds);
         $stmt->execute();
         $stmt->bind_result($titlePhotoId, $titleValue);
 
@@ -1307,17 +1257,19 @@ try {
     unset($photo);
 
     if ($latestViewedPhoto) {
+        $latestPhotoId = $latestViewedPhoto['photo_id'] !== null
+            ? (string)$latestViewedPhoto['photo_id']
+            : null;
+        $latestViewedPhoto['title'] = $latestPhotoId !== null
+            ? ($photoTitles[$latestPhotoId] ?? null)
+            : null;
+        $latestViewedPhoto['formatted_created_at'] = formatActivityTimestamp(
+            $latestViewedPhoto['created_at'] ?? null
+        );
         $latestViewedPhoto['image_url'] = safeDashboardResourceUrl(
             $latestViewedPhoto['image_url'] ?? null
         );
     }
-
-    foreach ($recentPhotoViews as &$recentView) {
-        $recentView['image_url'] = safeDashboardResourceUrl(
-            $recentView['image_url'] ?? null
-        );
-    }
-    unset($recentView);
 
     if ($mostViewedPhoto) {
         $mostViewedPhoto['image_url'] = safeDashboardResourceUrl(
@@ -1442,13 +1394,20 @@ try {
             border-color: #202124;
         }
 
-        .kpi-grid {
+        .summary-grid {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: minmax(0, 7fr) minmax(0, 3fr);
+            align-items: stretch;
 
             gap: 16px;
 
-            margin-bottom: 30px;
+            margin-bottom: 16px;
+        }
+
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
         }
 
         .dashboard-card {
@@ -1477,6 +1436,65 @@ try {
             font-size: 14px;
         }
 
+        .hero-card {
+            display: grid;
+            grid-template-rows: auto auto auto;
+            align-content: start;
+            gap: 14px;
+
+            min-width: 0;
+            padding: 22px;
+        }
+
+        .hero-card__title {
+            margin: 0;
+
+            font-size: 18px;
+        }
+
+        .hero-card__media {
+            display: block;
+            overflow: hidden;
+
+            width: 100%;
+            aspect-ratio: 3 / 2;
+
+            background: #f0f1f2;
+            border-radius: 8px;
+        }
+
+        .hero-card__image {
+            display: block;
+
+            width: 100%;
+            height: 100%;
+
+            object-fit: cover;
+            object-position: center;
+        }
+
+        .hero-card__content {
+            display: grid;
+            gap: 4px;
+
+            min-width: 0;
+        }
+
+        .hero-card__primary {
+            overflow: hidden;
+
+            font-size: 18px;
+            font-weight: 700;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .hero-card__meta {
+            color: #73767b;
+
+            font-size: 13px;
+        }
+
         .panel {
             padding: 24px;
         }
@@ -1490,7 +1508,7 @@ try {
             z-index: 1;
 
             display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
+            grid-template-columns: repeat(3, minmax(0, 1fr));
             align-items: stretch;
             gap: 10px;
         }
@@ -1822,16 +1840,6 @@ try {
             font-weight: 600;
         }
 
-        .sort-link {
-            color: inherit;
-            text-decoration: none;
-        }
-
-        .sort-link:hover {
-            color: #202124;
-            text-decoration: underline;
-        }
-
         tr:last-child td {
             border-bottom: 0;
         }
@@ -1841,8 +1849,18 @@ try {
         }
 
         .metric-value {
+            color: #73777d;
+
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .metric-value--primary {
+            color: #202124;
+
             font-size: 16px;
-            font-weight: 650;
+            font-weight: 700;
+            line-height: 1.35;
         }
 
         .metric-meta {
@@ -1851,6 +1869,66 @@ try {
             color: #8a8d92;
 
             font-size: 12px;
+        }
+
+        .ranking-primary {
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        .ranking-item__main td {
+            padding-top: 11px;
+            padding-bottom: 6px;
+            border-bottom: 0;
+        }
+
+        .ranking-item .ranking-item__details td {
+            padding-top: 0;
+            padding-bottom: 9px;
+
+            border-bottom: 1px solid #e5e7e9;
+        }
+
+        .ranking-details summary {
+            width: fit-content;
+
+            color: #777a80;
+            cursor: pointer;
+            list-style: none;
+
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .ranking-details summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .ranking-details summary::after {
+            content: ' ▾';
+        }
+
+        .ranking-details[open] summary::after {
+            content: ' ▴';
+        }
+
+        .ranking-details--with-thumbnail summary {
+            margin-left: 93px;
+        }
+
+        .ranking-details__metrics {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px 24px;
+
+            margin-top: 7px;
+            padding: 9px 12px;
+
+            background: #f7f8f9;
+        }
+
+        .ranking-details__metric {
+            min-width: 110px;
         }
 
         .empty {
@@ -1862,8 +1940,8 @@ try {
 
         @media (max-width: 850px) {
 
-            .kpi-grid {
-                grid-template-columns: repeat(2, 1fr);
+            .summary-grid {
+                grid-template-columns: 1fr;
             }
 
             .topbar {
@@ -1962,8 +2040,6 @@ try {
                     class="filter <?= $period === (string)$value ? 'active' : '' ?>"
                     href="?<?= h(http_build_query([
                         'period' => $value,
-                        'sort' => $sort,
-                        'direction' => $direction,
                         'include_admin' => $includeAdmin ? '1' : '0',
                         'photo_tab' => $photoTab
                     ])) ?>"
@@ -1977,7 +2053,9 @@ try {
 
     </div>
 
-    <div class="kpi-grid">
+    <div class="summary-grid">
+
+        <div class="kpi-grid">
 
         <div class="dashboard-card kpi-card">
 
@@ -2027,6 +2105,57 @@ try {
 
         </div>
 
+        </div>
+
+        <section class="dashboard-card hero-card" aria-labelledby="dashboard-hero-title">
+            <h2 class="hero-card__title" id="dashboard-hero-title">
+                <?= ioa_t('latest_image_viewed') ?>
+            </h2>
+
+            <div class="hero-card__media">
+                <?php if ($latestViewedPhoto && !empty($latestViewedPhoto['image_url'])): ?>
+                    <img
+                        class="hero-card__image"
+                        src="<?= h($latestViewedPhoto['image_url']) ?>"
+                        alt=""
+                        loading="lazy"
+                    >
+                <?php endif; ?>
+            </div>
+
+            <div class="hero-card__content">
+                <?php if ($latestViewedPhoto): ?>
+                    <?php if (!empty($latestViewedPhoto['title'])): ?>
+                        <div class="hero-card__primary">
+                            <?= h($latestViewedPhoto['title']) ?>
+                        </div>
+                        <div class="hero-card__meta">
+                            <?= ioa_t('photo') ?> <?= $latestViewedPhoto['photo_id'] !== null
+                                ? h($latestViewedPhoto['photo_id'])
+                                : '&ndash;'
+                            ?>
+                        </div>
+                    <?php else: ?>
+                        <div class="hero-card__primary">
+                            <?= ioa_t('photo') ?> <?= $latestViewedPhoto['photo_id'] !== null
+                                ? h($latestViewedPhoto['photo_id'])
+                                : '&ndash;'
+                            ?>
+                        </div>
+                    <?php endif; ?>
+
+                    <time
+                        class="hero-card__meta"
+                        datetime="<?= h($latestViewedPhoto['created_at']) ?>"
+                    >
+                        <?= h($latestViewedPhoto['formatted_created_at']) ?>
+                    </time>
+                <?php else: ?>
+                    <div class="hero-card__primary"><?= ioa_t('no_image_views_yet') ?></div>
+                <?php endif; ?>
+            </div>
+        </section>
+
     </div>
 
     <section class="photo-tabs" data-photo-tabs>
@@ -2035,54 +2164,9 @@ try {
 
             <a
                 class="dashboard-card photo-tab"
-                id="photo-tab-latest"
-                href="?<?= h(http_build_query([
-                    'period' => $period,
-                    'sort' => $sort,
-                    'direction' => $direction,
-                    'include_admin' => $includeAdmin ? '1' : '0',
-                    'photo_tab' => 'latest'
-                ])) ?>"
-                role="tab"
-                aria-selected="<?= $photoTab === 'latest' ? 'true' : 'false' ?>"
-                aria-controls="photo-panel-latest"
-                tabindex="<?= $photoTab === 'latest' ? '0' : '-1' ?>"
-                data-photo-tab="latest"
-            >
-                <h2 class="photo-tab__title"><?= ioa_t('tab_latest_views') ?></h2>
-
-                <?php if ($latestViewedPhoto): ?>
-                    <div class="photo-item photo-item--featured">
-                        <?php if (!empty($latestViewedPhoto['image_url'])): ?>
-                            <img
-                                class="photo-item__thumbnail photo-item__thumbnail--featured"
-                                src="<?= h($latestViewedPhoto['image_url']) ?>"
-                                alt=""
-                                loading="lazy"
-                            >
-                        <?php endif; ?>
-
-                        <div class="photo-item__body">
-                            <div class="photo-item__id">
-                                <?= ioa_t('photo') ?> <?= $latestViewedPhoto['photo_id'] !== null
-                                    ? h($latestViewedPhoto['photo_id'])
-                                    : '&ndash;'
-                                ?>
-                            </div>
-                        </div>
-                    </div>
-                <?php else: ?>
-                    <div class="photo-item__meta"><?= ioa_t('no_data_for_filter') ?></div>
-                <?php endif; ?>
-            </a>
-
-            <a
-                class="dashboard-card photo-tab"
                 id="photo-tab-views"
                 href="?<?= h(http_build_query([
                     'period' => $period,
-                    'sort' => $sort,
-                    'direction' => $direction,
                     'include_admin' => $includeAdmin ? '1' : '0',
                     'photo_tab' => 'views'
                 ])) ?>"
@@ -2121,8 +2205,6 @@ try {
                 id="photo-tab-downloads"
                 href="?<?= h(http_build_query([
                     'period' => $period,
-                    'sort' => $sort,
-                    'direction' => $direction,
                     'include_admin' => $includeAdmin ? '1' : '0',
                     'photo_tab' => 'downloads'
                 ])) ?>"
@@ -2161,8 +2243,6 @@ try {
                 id="photo-tab-visits"
                 href="?<?= h(http_build_query([
                     'period' => $period,
-                    'sort' => $sort,
-                    'direction' => $direction,
                     'include_admin' => $includeAdmin ? '1' : '0',
                     'photo_tab' => 'visits'
                 ])) ?>"
@@ -2200,75 +2280,6 @@ try {
 
             <div
                 class="photo-tabs__panel"
-                id="photo-panel-latest"
-                role="tabpanel"
-                aria-labelledby="photo-tab-latest"
-                tabindex="0"
-                <?= $photoTab === 'latest' ? '' : 'hidden' ?>
-                data-photo-panel="latest"
-            >
-                <div class="panel-header">
-                    <h2><?= ioa_t('latest_image_views') ?></h2>
-                    <span class="panel-hint">
-                        <?= ioa_t('latest_20') ?> · <?= h($allowedPeriods[$period]) ?>
-                    </span>
-                </div>
-
-                <?php if (count($recentPhotoViews) === 0): ?>
-                    <div class="empty">
-                        <?= ioa_t('no_image_views_for_filter') ?>
-                    </div>
-                <?php else: ?>
-                    <div class="photo-list">
-                        <?php foreach ($recentPhotoViews as $recentView): ?>
-                            <div class="photo-item photo-item--compact">
-                                <?php if (!empty($recentView['image_url'])): ?>
-                                    <a
-                                        class="thumbnail-link"
-                                        href="<?= h($recentView['image_url']) ?>"
-                                        target="_blank"
-                                        rel="noopener"
-                                    >
-                                        <img
-                                            class="photo-item__thumbnail photo-item__thumbnail--compact"
-                                            src="<?= h($recentView['image_url']) ?>"
-                                            alt=""
-                                            loading="lazy"
-                                        >
-                                    </a>
-                                <?php endif; ?>
-
-                                <div class="photo-item__body">
-                                    <div class="photo-item__primary">
-                                        <span class="photo-item__id">
-                                            <?= ioa_t('photo') ?> <?= $recentView['photo_id'] !== null
-                                                ? h($recentView['photo_id'])
-                                                : '&ndash;'
-                                            ?>
-                                        </span>
-                                        <time
-                                            class="photo-item__meta"
-                                            datetime="<?= h($recentView['created_at']) ?>"
-                                        >
-                                            <?= h($recentView['created_at']) ?>
-                                        </time>
-                                    </div>
-                                    <div class="photo-item__meta photo-item__meta--truncate">
-                                        <?= ioa_t('album_page') ?>:
-                                        <?= $recentView['page_context'] !== null
-                                            ? h($recentView['page_context'])
-                                            : '&ndash;'
-                                        ?>
-                                    </div>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
-                <?php endif; ?>
-            </div>
-
-            <div
-                class="photo-tabs__panel"
                 id="photo-panel-views"
                 role="tabpanel"
                 aria-labelledby="photo-tab-views"
@@ -2292,46 +2303,11 @@ try {
                         <table>
 
                 <thead>
-
                     <tr>
                         <th><?= ioa_t('image') ?></th>
-
-                        <?php foreach ($allowedSorts as $sortValue => $sortLabel): ?>
-
-                            <?php
-
-                            $nextDirection =
-                                $sort === $sortValue && $direction === 'desc'
-                                    ? 'asc'
-                                    : 'desc';
-
-                            $sortIndicator = $sort === $sortValue
-                                ? ($direction === 'asc' ? ' ↑' : ' ↓')
-                                : '';
-
-                            ?>
-
-                            <th>
-                                <a
-                                    class="sort-link"
-                                    href="?<?= h(http_build_query([
-                                        'period' => $period,
-                                        'sort' => $sortValue,
-                                        'direction' => $nextDirection,
-                                        'include_admin' => $includeAdmin ? '1' : '0',
-                                        'photo_tab' => 'views'
-                                    ])) ?>"
-                                >
-                                    <?= h($sortLabel . $sortIndicator) ?>
-                                </a>
-                            </th>
-
-                        <?php endforeach; ?>
+                        <th><?= ioa_t('views') ?></th>
                     </tr>
-
                 </thead>
-
-                <tbody>
 
                 <?php foreach ($topPhotos as $photo): ?>
 
@@ -2349,7 +2325,8 @@ try {
 
                     ?>
 
-                    <tr>
+                    <tbody class="ranking-item">
+                    <tr class="ranking-item__main">
 
                         <td>
 
@@ -2377,17 +2354,13 @@ try {
 
                                 <div class="photo-item__body">
 
-                                    <div class="photo-item__id">
-                                        <?= ioa_t('photo') ?> <?= h($photo['photo_id']) ?>
-                                    </div>
-
-                                    <div class="photo-item__meta">
-                                        <?= ioa_t('ioa_photo_id') ?>
-                                    </div>
-
                                     <?php if (!empty($photo['title'])): ?>
-                                        <div class="photo-item__meta photo-item__meta--truncate">
+                                        <div class="photo-item__id photo-item__meta--truncate">
                                             <?= h($photo['title']) ?>
+                                        </div>
+                                    <?php else: ?>
+                                        <div class="photo-item__id">
+                                            <?= ioa_t('photo') ?> <?= h($photo['photo_id']) ?>
                                         </div>
                                     <?php endif; ?>
 
@@ -2397,51 +2370,54 @@ try {
 
                         </td>
 
-                        <td>
+                        <td class="ranking-primary">
 
-                            <div class="metric-value">
+                            <div class="metric-value metric-value--primary">
                                 <?= (int)$photo['views'] ?>
                             </div>
 
                         </td>
 
-                        <td>
-
-                            <div class="metric-value">
-                                <?= (int)$photo['sessions'] ?>
-                            </div>
-
-                        </td>
-
-                        <td>
-
-                            <div class="metric-value">
-                                <?= (int)$photo['basket'] ?>
-                            </div>
-
-                            <div class="metric-meta">
-                                <?= h($basketRate) ?> <?= ioa_t('percent_of_views') ?>
-                            </div>
-
-                        </td>
-
-                        <td>
-
-                            <div class="metric-value">
-                                <?= (int)$photo['downloads'] ?>
-                            </div>
-
-                            <div class="metric-meta">
-                                <?= h($downloadRate) ?> <?= ioa_t('percent_of_views') ?>
-                            </div>
-
+                    </tr>
+                    <tr class="ranking-item__details">
+                        <td colspan="2">
+                            <details class="ranking-details<?= !empty($photo['image_url']) ? ' ranking-details--with-thumbnail' : '' ?>">
+                                <summary>
+                                    <?php if (!empty($photo['title'])): ?>
+                                        <?= ioa_t('photo') ?> <?= h($photo['photo_id']) ?> &middot;
+                                    <?php endif; ?>
+                                    <?= ioa_t('details') ?>
+                                </summary>
+                                <div class="ranking-details__metrics">
+                                <div class="ranking-details__metric">
+                                    <div class="metric-value">
+                                        <?= (int)$photo['sessions'] ?> <?= ioa_t('sessions_lowercase') ?>
+                                    </div>
+                                </div>
+                                <div class="ranking-details__metric">
+                                    <div class="metric-value">
+                                        <?= (int)$photo['downloads'] ?> <?= ioa_t('downloads_lowercase') ?>
+                                    </div>
+                                    <div class="metric-meta">
+                                        <?= h($downloadRate) ?> <?= ioa_t('percent_of_views') ?>
+                                    </div>
+                                </div>
+                                <div class="ranking-details__metric">
+                                    <div class="metric-value">
+                                        <?= (int)$photo['basket'] ?> <?= ioa_t('in_basket') ?>
+                                    </div>
+                                    <div class="metric-meta">
+                                        <?= h($basketRate) ?> <?= ioa_t('percent_of_views') ?>
+                                    </div>
+                                </div>
+                                </div>
+                            </details>
                         </td>
 
                     </tr>
 
+                    </tbody>
                 <?php endforeach; ?>
-
-                </tbody>
 
                         </table>
                     </div>
@@ -2475,18 +2451,15 @@ try {
                                 <tr>
                                     <th><?= ioa_t('image') ?></th>
                                     <th><?= ioa_t('metric_downloads') ?></th>
-                                    <th><?= ioa_t('views') ?></th>
-                                    <th><?= ioa_t('metric_sessions') ?></th>
-                                    <th><?= ioa_t('metric_basket') ?></th>
                                 </tr>
                             </thead>
-                            <tbody>
                             <?php foreach ($topDownloadedPhotos as $photo): ?>
                                 <?php
                                 $basketRate = percent($photo['basket'], $photo['views']);
                                 $downloadRate = percent($photo['downloads'], $photo['views']);
                                 ?>
-                                <tr>
+                                <tbody class="ranking-item">
+                                <tr class="ranking-item__main">
                                     <td>
                                         <div class="photo-item">
                                             <?php if (!empty($photo['image_url'])): ?>
@@ -2506,49 +2479,66 @@ try {
                                             <?php endif; ?>
 
                                             <div class="photo-item__body">
-                                                <div class="photo-item__id">
-                                                    <?= ioa_t('photo') ?> <?= h($photo['photo_id']) ?>
-                                                </div>
-                                                <div class="photo-item__meta">
-                                                    <?= ioa_t('ioa_photo_id') ?>
-                                                </div>
                                                 <?php if (!empty($photo['title'])): ?>
-                                                    <div class="photo-item__meta photo-item__meta--truncate">
+                                                    <div class="photo-item__id photo-item__meta--truncate">
                                                         <?= h($photo['title']) ?>
+                                                    </div>
+                                                <?php else: ?>
+                                                    <div class="photo-item__id">
+                                                        <?= ioa_t('photo') ?> <?= h($photo['photo_id']) ?>
                                                     </div>
                                                 <?php endif; ?>
                                             </div>
                                         </div>
                                     </td>
-                                    <td>
-                                        <div class="metric-value">
+                                    <td class="ranking-primary">
+                                        <div class="metric-value metric-value--primary">
                                             <?= (int)$photo['downloads'] ?>
-                                        </div>
-                                        <div class="metric-meta">
-                                            <?= h($downloadRate) ?> <?= ioa_t('percent_of_views') ?>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <div class="metric-value">
-                                            <?= (int)$photo['views'] ?>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <div class="metric-value">
-                                            <?= (int)$photo['sessions'] ?>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <div class="metric-value">
-                                            <?= (int)$photo['basket'] ?>
-                                        </div>
-                                        <div class="metric-meta">
-                                            <?= h($basketRate) ?> <?= ioa_t('percent_of_views') ?>
                                         </div>
                                     </td>
                                 </tr>
+                                <tr class="ranking-item__details">
+                                    <td colspan="2">
+                                        <details class="ranking-details<?= !empty($photo['image_url']) ? ' ranking-details--with-thumbnail' : '' ?>">
+                                            <summary>
+                                                <?php if (!empty($photo['title'])): ?>
+                                                    <?= ioa_t('photo') ?> <?= h($photo['photo_id']) ?> &middot;
+                                                <?php endif; ?>
+                                                <?= ioa_t('details') ?>
+                                            </summary>
+                                            <div class="ranking-details__metrics">
+                                            <div class="ranking-details__metric">
+                                                <div class="metric-value">
+                                                    <?= (int)$photo['views'] ?> <?= ioa_t('image_views_lowercase') ?>
+                                                </div>
+                                            </div>
+                                            <div class="ranking-details__metric">
+                                                <div class="metric-value">
+                                                    <?= (int)$photo['sessions'] ?> <?= ioa_t('sessions_lowercase') ?>
+                                                </div>
+                                            </div>
+                                            <div class="ranking-details__metric">
+                                                <div class="metric-value">
+                                                    <?= (int)$photo['basket'] ?> <?= ioa_t('in_basket') ?>
+                                                </div>
+                                                <div class="metric-meta">
+                                                    <?= h($basketRate) ?> <?= ioa_t('percent_of_views') ?>
+                                                </div>
+                                            </div>
+                                            <div class="ranking-details__metric">
+                                                <div class="metric-value">
+                                                    <?= ioa_t('metric_downloads') ?>
+                                                </div>
+                                                <div class="metric-meta">
+                                                    <?= h($downloadRate) ?> <?= ioa_t('percent_of_views') ?>
+                                                </div>
+                                            </div>
+                                            </div>
+                                        </details>
+                                    </td>
+                                </tr>
+                                </tbody>
                             <?php endforeach; ?>
-                            </tbody>
                         </table>
                     </div>
                 <?php endif; ?>
