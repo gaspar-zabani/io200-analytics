@@ -1112,20 +1112,12 @@ try {
                 $visitPhotoIds[$photoId] = $photoId;
                 if (!isset($photos[$photoId])) {
                     $photos[$photoId] = [
-                        'photo_id' => $photoId, 'views' => 0, 'downloads' => 0,
-                        'adds' => 0, 'removes' => 0, 'basket_order' => 0
+                        'photo_id' => $photoId, 'views' => 0, 'downloads' => 0
                     ];
                 }
                 if ($event['event_type'] === 'photo_view') $photos[$photoId]['views']++;
                 if (in_array($event['event_type'], ['photo_download', 'batch_download'], true)) {
                     $photos[$photoId]['downloads']++;
-                }
-                if ($event['event_type'] === 'basket_add' || $event['event_type'] === 'basket_remove') {
-                    $field = $event['event_type'] === 'basket_add' ? 'adds' : 'removes';
-                    $photos[$photoId][$field]++;
-                    // Events are already ordered by recorded timestamp, then ID.
-                    $photos[$photoId]['basket_order'] = $event['id'];
-                    $photos[$photoId]['basket_time'] = $event['created_at'];
                 }
             }
             if ($event['event_type'] === 'batch_download') {
@@ -1138,20 +1130,23 @@ try {
         }
         unset($event);
         $visit['highlights'] = [];
-        foreach (['views', 'downloads', 'basket'] as $group) {
+        foreach (['views', 'downloads'] as $group) {
             $ranked = array_values(array_filter($photos, static function ($photo) use ($group) {
-                return $group === 'basket' ? $photo['adds'] + $photo['removes'] > 0 : $photo[$group] > 0;
+                return $photo[$group] > 0;
             }));
             usort($ranked, static function ($a, $b) use ($group) {
-                if ($group === 'basket') {
-                    return strcmp($b['basket_time'], $a['basket_time'])
-                        ?: ($b['basket_order'] <=> $a['basket_order'])
-                        ?: ($a['photo_id'] <=> $b['photo_id']);
-                }
                 return ($b[$group] <=> $a[$group]) ?: ($a['photo_id'] <=> $b['photo_id']);
             });
             if ($group === 'views') $visit['viewed_photos'] = $ranked;
-            if ($ranked) $visit['highlights'][$group] = array_slice($ranked, 0, 3);
+            if ($ranked) $visit['highlights'][$group] = array_slice($ranked, 0, 5);
+        }
+        // Keep separate actions in recorded timestamp/ID order, including repeated photos.
+        $basketActions = array_values(array_filter($visit['events'], static function ($event) {
+            return in_array($event['event_type'], ['basket_add', 'basket_remove'], true);
+        }));
+        $visit['more_basket_actions'] = max(0, count($basketActions) - 5);
+        if ($basketActions) {
+            $visit['highlights']['basket'] = array_slice($basketActions, -5);
         }
     }
     unset($visit);
@@ -2346,12 +2341,33 @@ try {
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            margin-top: 4px;
             color: #41464c;
-            font-size: 16px;
-            font-weight: 650;
+            font-size: 24px;
+            font-weight: 700;
+            line-height: 1.2;
             font-variant-numeric: tabular-nums;
             white-space: nowrap;
+        }
+
+        .ranking-item .photo-item__id,
+        .visit-highlight-caption--ranking .visit-highlight-title {
+            overflow: hidden;
+            color: #73777d;
+            font-size: 13px;
+            font-weight: 400;
+            line-height: 1.35;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .visit-highlight-caption--ranking {
+            display: grid;
+            gap: 3px;
+        }
+
+        .visit-highlight-basket-action {
+            font-size: 15px;
+            font-weight: 600;
         }
 
         .ranking-primary svg {
@@ -2856,6 +2872,11 @@ try {
 
                                 <div class="photo-item__body">
 
+                                    <span class="ranking-primary" title="<?= h(formatCountLabel($photo['views'], 'one_view', 'views_count', '%d view', '%d views')) ?>">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+                                        <span aria-hidden="true"><?= (int)$photo['views'] ?></span>
+                                        <span class="ranking-primary__accessible"><?= h(formatCountLabel($photo['views'], 'one_view', 'views_count', '%d view', '%d views')) ?></span>
+                                    </span>
                                     <?php if (!empty($photo['title'])): ?>
                                         <div class="photo-item__id photo-item__meta--truncate">
                                             <?= h($photo['title']) ?>
@@ -2865,11 +2886,6 @@ try {
                                             <?= ioa_t('photo') ?> <?= h($photo['photo_id']) ?>
                                         </div>
                                     <?php endif; ?>
-                                                <span class="ranking-primary" title="<?= h(formatCountLabel($photo['views'], 'one_view', 'views_count', '%d view', '%d views')) ?>">
-                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
-                                                    <span aria-hidden="true"><?= (int)$photo['views'] ?></span>
-                                                    <span class="ranking-primary__accessible"><?= h(formatCountLabel($photo['views'], 'one_view', 'views_count', '%d view', '%d views')) ?></span>
-                                                </span>
 
                                 </div>
 
@@ -2974,6 +2990,11 @@ try {
                                             <?php endif; ?>
 
                                             <div class="photo-item__body">
+                                                <span class="ranking-primary" title="<?= h(formatCountLabel($photo['downloads'], 'one_download', 'downloads_count', '%d download', '%d downloads')) ?>">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 3v12m-4-4 4 4 4-4M5 17v4h14v-4"/></svg>
+                                                    <span aria-hidden="true"><?= (int)$photo['downloads'] ?></span>
+                                                    <span class="ranking-primary__accessible"><?= h(formatCountLabel($photo['downloads'], 'one_download', 'downloads_count', '%d download', '%d downloads')) ?></span>
+                                                </span>
                                                 <?php if (!empty($photo['title'])): ?>
                                                     <div class="photo-item__id photo-item__meta--truncate">
                                                         <?= h($photo['title']) ?>
@@ -2983,11 +3004,6 @@ try {
                                                         <?= ioa_t('photo') ?> <?= h($photo['photo_id']) ?>
                                                     </div>
                                                 <?php endif; ?>
-                                                <span class="ranking-primary" title="<?= h(formatCountLabel($photo['downloads'], 'one_download', 'downloads_count', '%d download', '%d downloads')) ?>">
-                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 3v12m-4-4 4 4 4-4M5 17v4h14v-4"/></svg>
-                                                    <span aria-hidden="true"><?= (int)$photo['downloads'] ?></span>
-                                                    <span class="ranking-primary__accessible"><?= h(formatCountLabel($photo['downloads'], 'one_download', 'downloads_count', '%d download', '%d downloads')) ?></span>
-                                                </span>
                                             </div>
                                         </div>
                                     </td>
@@ -3120,26 +3136,39 @@ try {
                                                     <?php else: ?>
                                                         <span class="visit-highlight-image visit-image-placeholder" role="img" aria-label="<?= ioa_t('no_preview') ?>">&ndash;</span>
                                                     <?php endif; ?>
-                                                    <div class="visit-highlight-caption">
+                                                    <div class="visit-highlight-caption visit-highlight-caption--ranking">
+                                                        <?php if ($group === 'basket'): ?>
+                                                            <?php
+                                                            $basketActionLabel = ioa_translate($photo['event_type'] === 'basket_add' ? 'basket_action_added' : 'basket_action_removed');
+                                                            ?>
+                                                            <span class="ranking-primary visit-highlight-basket-action">
+                                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m8 3-4 6m12-6 4 6M2 9h20l-3 12H5L2 9Zm7 4v4m6-4v4"/></svg>
+                                                                <span><?= h($basketActionLabel) ?></span>
+                                                            </span>
+                                                        <?php endif; ?>
+                                                        <?php if ($group !== 'basket'): ?>
+                                                            <?php
+                                                            $highlightMetricLabel = $group === 'views'
+                                                                ? formatCountLabel($photo['views'], 'one_view', 'views_count', '%d view', '%d views')
+                                                                : formatCountLabel($photo['downloads'], 'one_download', 'downloads_count', '%d download', '%d downloads');
+                                                            ?>
+                                                            <span class="ranking-primary" title="<?= h($highlightMetricLabel) ?>">
+                                                                <?php if ($group === 'views'): ?>
+                                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+                                                                <?php else: ?>
+                                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 3v12m-4-4 4 4 4-4M5 17v4h14v-4"/></svg>
+                                                                <?php endif; ?>
+                                                                <span aria-hidden="true"><?= (int)$photo[$group] ?></span>
+                                                                <span class="ranking-primary__accessible"><?= h($highlightMetricLabel) ?></span>
+                                                            </span>
+                                                        <?php endif; ?>
                                                         <div class="visit-highlight-title"><?= h($photoTitles[$photo['photo_id']] ?? (ioa_translate('photo') . ' ' . $photo['photo_id'])) ?></div>
-                                                        <div class="photo-item__meta">
-                                                            <?php if ($group === 'basket'): ?>
-                                                                <?php if ($photo['adds'] > 0): ?>
-                                                                    <?= h(formatCountLabel($photo['adds'], 'added_to_basket', 'added_to_basket_count', 'Added to basket', 'Added to basket %d times')) ?>
-                                                                <?php endif; ?>
-                                                                <?php if ($photo['adds'] > 0 && $photo['removes'] > 0): ?>&middot;<?php endif; ?>
-                                                                <?php if ($photo['removes'] > 0): ?>
-                                                                    <?= h(formatCountLabel($photo['removes'], 'removed_from_basket', 'removed_from_basket_count', 'Removed from basket', 'Removed from basket %d times')) ?>
-                                                                <?php endif; ?>
-                                                            <?php elseif ($group === 'views'): ?>
-                                                                <?= h(formatCountLabel($photo['views'], 'one_view', 'views_count', '%d view', '%d views')) ?>
-                                                            <?php else: ?>
-                                                                <?= h(formatCountLabel($photo['downloads'], 'one_download', 'downloads_count', '%d download', '%d downloads')) ?>
-                                                            <?php endif; ?>
-                                                        </div>
                                                     </div>
                                                 </div>
                                             <?php endforeach; ?>
+                                            <?php if ($group === 'basket' && $visit['more_basket_actions'] > 0): ?>
+                                                <div class="photo-item__meta"><?= h(sprintf(ioa_translate('more_basket_actions'), $visit['more_basket_actions'])) ?></div>
+                                            <?php endif; ?>
                                         </section>
                                     <?php endforeach; ?>
                                 </div>
