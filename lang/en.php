@@ -77,4 +77,12 @@ return [
     'show_photo' => 'Show photo',
     'show_selected_photos' => 'Show selected photos',
     'selected_photo_ids' => 'Selected Photo IDs',
+    'basket_activity' => 'Basket activity',
+    'no_preview' => 'No image preview available',
+    'show_activity' => 'Show activity',
+    'latest_visit' => 'Latest Visit',
+    'one_photo_downloaded' => '1 photo downloaded',
+    'photos_downloaded_count' => '%d photos downloaded',
+    'activity_on_context' => 'On "%s"',
+    'more_photos_count' => '+%d more',
 ];
