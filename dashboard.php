@@ -2098,12 +2098,12 @@ try {
         .visit-summary {
             position: relative;
 
-            display: grid;
-            grid-template-columns: minmax(130px, auto) minmax(0, 1fr) auto;
-            align-items: baseline;
-            gap: 5px 18px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px 28px;
 
-            padding: 14px 28px 14px 10px;
+            padding: 17px 32px 17px 10px;
 
             cursor: pointer;
             list-style: none;
@@ -2116,6 +2116,7 @@ try {
         .visit-summary::after {
             position: absolute;
             right: 10px;
+            top: 18px;
 
             content: '▾';
             color: #777a80;
@@ -2125,26 +2126,73 @@ try {
             content: '▴';
         }
 
+        .visit-summary:focus-visible {
+            outline: 2px solid currentColor;
+            outline-offset: -2px;
+            border-radius: 6px;
+        }
+
+        .visit-summary__identity {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 0 1 auto;
+            min-width: 0;
+        }
+
         .visit-summary__time {
-            font-size: 15px;
-            font-weight: 700;
+            font-size: 17px;
+            font-weight: 750;
+            line-height: 1.4;
+            color: #292d32;
         }
 
         .visit-summary__metrics {
             display: flex;
             flex-wrap: wrap;
-            gap: 3px 14px;
-
-            color: #4f5358;
-
-            font-size: 13px;
+            align-items: center;
+            gap: 10px 24px;
+            min-width: 0;
         }
 
-        .visit-summary__span {
-            color: #85888d;
-
-            font-size: 12px;
+        .visit-summary__metric {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
             white-space: nowrap;
+            color: #41464c;
+        }
+
+        .visit-summary__metric svg {
+            width: 16px;
+            height: 16px;
+            flex: 0 0 16px;
+            color: #858b92;
+        }
+
+        .visit-summary__value {
+            font-size: 16px;
+            font-weight: 650;
+            font-variant-numeric: tabular-nums;
+            line-height: 1.3;
+        }
+
+        .visit-summary__metric--span .visit-summary__value {
+            font-size: 14px;
+            font-weight: 500;
+            color: #70767d;
+        }
+
+        .visit-summary__accessible {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip-path: inset(50%);
+            white-space: nowrap;
+            border: 0;
         }
 
         .visit-timeline {
@@ -2264,7 +2312,6 @@ try {
             border-collapse: collapse;
         }
 
-        th,
         td {
             padding: 13px 10px;
 
@@ -2274,19 +2321,8 @@ try {
             vertical-align: middle;
         }
 
-        th {
-            color: #777a80;
-
-            font-size: 13px;
-            font-weight: 600;
-        }
-
         tr:last-child td {
             border-bottom: 0;
-        }
-
-        .table-scroll {
-            overflow-x: auto;
         }
 
         .metric-value {
@@ -2294,14 +2330,6 @@ try {
 
             font-size: 14px;
             font-weight: 500;
-        }
-
-        .metric-value--primary {
-            color: #202124;
-
-            font-size: 16px;
-            font-weight: 700;
-            line-height: 1.35;
         }
 
         .metric-meta {
@@ -2312,8 +2340,33 @@ try {
             font-size: 12px;
         }
 
+        .ranking-table { table-layout: fixed; }
+
         .ranking-primary {
-            text-align: right;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 4px;
+            color: #41464c;
+            font-size: 16px;
+            font-weight: 650;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+
+        .ranking-primary svg {
+            width: 16px;
+            height: 16px;
+            flex: 0 0 16px;
+            color: #858b92;
+        }
+
+        .ranking-primary__accessible {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+            clip-path: inset(50%);
             white-space: nowrap;
         }
 
@@ -2415,8 +2468,12 @@ try {
                 border-radius: 12px;
             }
 
-            .visit-summary {
-                grid-template-columns: 1fr;
+            .visit-summary__identity {
+                flex-basis: 100%;
+            }
+
+            .visit-summary__metrics {
+                gap: 10px 18px;
             }
 
         }
@@ -2444,9 +2501,6 @@ try {
                 padding-left: 0;
             }
 
-            table {
-                min-width: 760px;
-            }
 
         }
 
@@ -2754,15 +2808,8 @@ try {
                         <?= ioa_t('no_statistics_yet') ?>
                     </div>
                 <?php else: ?>
-                    <div class="table-scroll">
-                        <table>
-
-                <thead>
-                    <tr>
-                        <th><?= ioa_t('image') ?></th>
-                        <th><?= ioa_t('views') ?></th>
-                    </tr>
-                </thead>
+                    <div class="ranking-list">
+                        <table class="ranking-table">
 
                 <?php foreach ($topPhotos as $photo): ?>
 
@@ -2818,6 +2865,11 @@ try {
                                             <?= ioa_t('photo') ?> <?= h($photo['photo_id']) ?>
                                         </div>
                                     <?php endif; ?>
+                                                <span class="ranking-primary" title="<?= h(formatCountLabel($photo['views'], 'one_view', 'views_count', '%d view', '%d views')) ?>">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+                                                    <span aria-hidden="true"><?= (int)$photo['views'] ?></span>
+                                                    <span class="ranking-primary__accessible"><?= h(formatCountLabel($photo['views'], 'one_view', 'views_count', '%d view', '%d views')) ?></span>
+                                                </span>
 
                                 </div>
 
@@ -2825,17 +2877,11 @@ try {
 
                         </td>
 
-                        <td class="ranking-primary">
 
-                            <div class="metric-value metric-value--primary">
-                                <?= (int)$photo['views'] ?>
-                            </div>
-
-                        </td>
 
                     </tr>
                     <tr class="ranking-item__details">
-                        <td colspan="2">
+                        <td colspan="1">
                             <details class="ranking-details<?= !empty($photo['image_url']) ? ' ranking-details--with-thumbnail' : '' ?>">
                                 <summary>
                                     <?php if (!empty($photo['title'])): ?>
@@ -2900,14 +2946,8 @@ try {
                         <?= ioa_t('no_statistics_yet') ?>
                     </div>
                 <?php else: ?>
-                    <div class="table-scroll">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th><?= ioa_t('image') ?></th>
-                                    <th><?= ioa_t('metric_downloads') ?></th>
-                                </tr>
-                            </thead>
+                    <div class="ranking-list">
+                        <table class="ranking-table">
                             <?php foreach ($topDownloadedPhotos as $photo): ?>
                                 <?php
                                 $basketRate = percent($photo['basket'], $photo['views']);
@@ -2943,17 +2983,18 @@ try {
                                                         <?= ioa_t('photo') ?> <?= h($photo['photo_id']) ?>
                                                     </div>
                                                 <?php endif; ?>
+                                                <span class="ranking-primary" title="<?= h(formatCountLabel($photo['downloads'], 'one_download', 'downloads_count', '%d download', '%d downloads')) ?>">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 3v12m-4-4 4 4 4-4M5 17v4h14v-4"/></svg>
+                                                    <span aria-hidden="true"><?= (int)$photo['downloads'] ?></span>
+                                                    <span class="ranking-primary__accessible"><?= h(formatCountLabel($photo['downloads'], 'one_download', 'downloads_count', '%d download', '%d downloads')) ?></span>
+                                                </span>
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="ranking-primary">
-                                        <div class="metric-value metric-value--primary">
-                                            <?= (int)$photo['downloads'] ?>
-                                        </div>
-                                    </td>
+
                                 </tr>
                                 <tr class="ranking-item__details">
-                                    <td colspan="2">
+                                    <td colspan="1">
                                         <details class="ranking-details<?= !empty($photo['image_url']) ? ' ranking-details--with-thumbnail' : '' ?>">
                                             <summary>
                                                 <?php if (!empty($photo['title'])): ?>
@@ -3024,49 +3065,48 @@ try {
                         <?php foreach ($recentVisits as $visit): ?>
                             <details class="visit-item">
                                 <summary class="visit-summary">
-                                    <time
-                                        class="visit-summary__time"
-                                        datetime="<?= h($visit['latest_activity']) ?>"
-                                    >
-                                        <?= h($visit['formatted_latest_activity']) ?>
-                                    </time>
-
+                                    <span class="visit-summary__identity">
+                                        <time class="visit-summary__time" datetime="<?= h($visit['latest_activity']) ?>">
+                                            <?= h($visit['formatted_latest_activity']) ?>
+                                        </time>
+                                    </span>
                                     <span class="visit-summary__metrics">
-                                        <?php if ($visit['unique_photos_viewed'] > 0): ?>
-                                            <span><?= h(formatCountLabel(
-                                                $visit['unique_photos_viewed'],
-                                                'one_photo_viewed',
-                                                'photos_viewed_count',
-                                                '%d photo viewed',
-                                                '%d photos viewed'
-                                            )) ?></span>
-                                        <?php endif; ?>
-                                        <?php if ($visit['downloads'] > 0): ?>
-                                            <span><?= h(formatCountLabel(
-                                                $visit['downloads'],
-                                                'one_photo_downloaded',
-                                                'photos_downloaded_count',
-                                                '%d photo downloaded',
-                                                '%d photos downloaded'
-                                            )) ?></span>
-                                        <?php endif; ?>
-                                        <?php if ($visit['basket_actions'] > 0): ?>
-                                            <span><?= h(formatCountLabel(
-                                                $visit['basket_actions'],
-                                                'one_basket_action',
-                                                'basket_actions_count',
-                                                '%d basket action',
-                                                '%d basket actions'
-                                            )) ?></span>
+                                        <?php
+                                        $headerMetrics = [
+                                            [
+                                                'value' => $visit['unique_photos_viewed'],
+                                                'label' => formatCountLabel($visit['unique_photos_viewed'], 'one_photo_viewed', 'photos_viewed_count', '%d photo viewed', '%d photos viewed'),
+                                                'icon' => '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>'
+                                            ],
+                                            [
+                                                'value' => $visit['downloads'],
+                                                'label' => formatCountLabel($visit['downloads'], 'one_photo_downloaded', 'photos_downloaded_count', '%d photo downloaded', '%d photos downloaded'),
+                                                'icon' => '<path d="M12 3v12m-4-4 4 4 4-4M5 17v4h14v-4"/>'
+                                            ],
+                                            [
+                                                'value' => $visit['basket_actions'],
+                                                'label' => formatCountLabel($visit['basket_actions'], 'one_basket_action', 'basket_actions_count', '%d basket action', '%d basket actions'),
+                                                'icon' => '<path d="m8 3-4 6m12-6 4 6M2 9h20l-3 12H5L2 9Zm7 4v4m6-4v4"/>'
+                                            ]
+                                        ];
+                                        ?>
+                                        <?php foreach ($headerMetrics as $metric): ?>
+                                            <?php if ($metric['value'] <= 0) continue; ?>
+                                            <span class="visit-summary__metric" title="<?= h($metric['label']) ?>">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><?= $metric['icon'] ?></svg>
+                                                <span class="visit-summary__value" aria-hidden="true"><?= (int)$metric['value'] ?></span>
+                                                <span class="visit-summary__accessible"><?= h($metric['label']) ?></span>
+                                            </span>
+                                        <?php endforeach; ?>
+                                        <?php if ($visit['activity_span'] !== null): ?>
+                                            <?php $spanLabel = ioa_translate('recorded_activity_span') . ': ' . $visit['activity_span']; ?>
+                                            <span class="visit-summary__metric visit-summary__metric--span" title="<?= h($spanLabel) ?>">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                                                <span class="visit-summary__value" aria-hidden="true"><?= h(strtr($visit['activity_span'], [' min' => 'm', ' hr' => 'h', ' d' => 'd'])) ?></span>
+                                                <span class="visit-summary__accessible"><?= h($spanLabel) ?></span>
+                                            </span>
                                         <?php endif; ?>
                                     </span>
-
-                                    <?php if ($visit['activity_span'] !== null): ?>
-                                        <span class="visit-summary__span">
-                                            <?= ioa_t('recorded_activity_span') ?>:
-                                            <?= h($visit['activity_span']) ?>
-                                        </span>
-                                    <?php endif; ?>
                                 </summary>
 
                                 <div class="visit-highlights">
