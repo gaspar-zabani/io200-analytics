@@ -7,7 +7,7 @@ This external-testing build has an English-only interface.
 ## What IO200 Analytics does
 
 - Tracks lightbox photo views, basket additions/removals, single-photo downloads, and completed album/batch downloads.
-- Reports photo views, visits/sessions, basket activity, and downloaded photos for selectable periods.
+- Reports photo views, Visits, basket activity, and downloaded photos for selectable periods.
 - Shows the 20 latest image views, 20 most-viewed images, 20 most-downloaded images, and 20 latest visits.
 - Derives readable album/page context from collected page paths.
 
@@ -55,7 +55,11 @@ Unauthenticated visitors see a compact public product, download, and installatio
 | `photo_download` | IO200 calls its single-photo download hook | Photo ID, download URL, page path, session ID |
 | `batch_download` | IO200 completes an album/batch download | Valid photo IDs and URLs in JSON, page path, session ID |
 
-Events also receive a server-side timestamp and client-supplied `is_admin` value. A visit groups events sharing a non-empty random ID held in browser `sessionStorage`; it represents one browser-tab session, not a unique person.
+Events also receive a server-side timestamp and client-supplied `is_admin` value.
+
+A Visit is a recorded activity episode. More than 30 minutes of inactivity starts a new Visit. The selected period includes Visits with at least one recorded action in that period; their full activity may extend beyond the period boundary. Visits do not represent unique people or exact time on site.
+
+The Visits KPI counts all qualifying episodes, while Latest visits shows the most recent 20. Activity that cannot be assigned to a Visit can still contribute to ordinary photo totals.
 
 The public `collect.php` endpoint accepts validated events from `analytics.js` and is intentionally not protected by Admin login.
 
@@ -90,7 +94,7 @@ Email [ioa@jesperalvermark.se](mailto:ioa@jesperalvermark.se). Useful reports in
 - The interface is English-only and has no language selector.
 - Tracking depends on current IO200 DOM selectors, lightbox URL matching, and download-hook names.
 - Admin/excluded-traffic classification is client supplied.
-- Sessions represent browser-tab activity, not people or exact time on site.
+- Visits represent recorded activity episodes, not unique people or exact time on site.
 - Breadcrumbs are path transformations, not authoritative IO200 metadata.
 - Photos are primarily identified by numeric IDs and stored URLs.
 - There is no general migration system, retention cleanup, export, automated test suite, release automation, or updater.
