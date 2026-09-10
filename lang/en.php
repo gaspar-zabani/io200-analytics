@@ -2,6 +2,7 @@
 
 return [
     'app_name' => 'IO200 Analytics',
+    'update_available' => 'Update available',
     'dashboard' => 'Dashboard',
     'product_intro' => 'A lightweight analytics add-on for the self-hosted IO200 photo platform.',
     'product_activity_summary' => 'Understand photo views, downloads, basket activity, and visit and gallery activity—without an external analytics service.',

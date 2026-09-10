@@ -3265,7 +3265,21 @@ try {
 
     </section>
 
+    <?php
+    // Optional until the customer ZIP allowlist includes the notification files.
+    $installedVersion = is_file(__DIR__ . '/version.php') ? (require __DIR__ . '/version.php') : null;
+    $availableUpdate = null;
+    if (is_string($installedVersion) && is_file(__DIR__ . '/update-check.php')) {
+        require_once __DIR__ . '/update-check.php';
+        $availableUpdate = ioaAvailableUpdate($installedVersion);
+    }
+    ?>
     <footer class="dashboard-footer">
+        <?= ioa_t('app_name') ?><?php if (is_string($installedVersion)): ?> · v<?= h($installedVersion) ?><?php endif; ?>
+        <?php if ($availableUpdate !== null): ?>
+            · <a href="<?= h($availableUpdate['download_url']) ?>"><?= ioa_t('update_available') ?></a>
+        <?php endif; ?>
+        ·
         <a href="mailto:ioa@jesperalvermark.se">
             <?= ioa_t('feedback') ?>: ioa@jesperalvermark.se
         </a>

@@ -2,6 +2,7 @@
 """Build the customer ZIP using only explicitly allowed application files."""
 
 from pathlib import Path
+import re
 import shutil
 import sys
 import tempfile
@@ -15,12 +16,37 @@ RELEASE_FILES = (
     "install.php",
     "uninstall.php",
     "localization.php",
+    "version.php",
+    "update-check.php",
     "lang/en.php",
     "assets/dashboard-preview.png",
     "README.md",
     "LICENSE",
 )
 PACKAGE_ROOT = "io200-analytics"
+
+
+def read_version(path):
+    # Parse the deliberately simple PHP return file without requiring PHP locally.
+    match = re.fullmatch(
+        r"\s*<\?php\s+return\s+(['\"])([^'\"]+)\1\s*;\s*",
+        path.read_text(encoding="utf-8"),
+    )
+    if match is None:
+        raise ValueError("version.php must contain only <?php and a quoted version return statement")
+    version = match.group(2)
+    semantic = re.fullmatch(
+        r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
+        r"(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
+        r"(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?",
+        version,
+    )
+    if semantic is None or len(version) > 128:
+        raise ValueError("version.php must provide a valid SemVer version")
+    for identifier in (semantic.group(4) or "").split("."):
+        if identifier.isdigit() and len(identifier) > 1 and identifier.startswith("0"):
+            raise ValueError("version.php has a numeric prerelease identifier with leading zeroes")
+    return version
 
 
 def build_release():
@@ -36,11 +62,12 @@ def build_release():
         if not source.is_file():
             raise ValueError("Required release file is missing: {}".format(relative))
 
+    version = read_version(repository / "version.php")
     output_directory = repository / "dist"
     if output_directory.is_symlink():
         raise ValueError("Output directory must not be a symlink: {}".format(output_directory))
     output_directory.mkdir(exist_ok=True)
-    destination = output_directory / "io200-analytics.zip"
+    destination = output_directory / "io200-analytics-{}.zip".format(version)
     if destination.is_symlink():
         raise ValueError("Output ZIP must not be a symlink: {}".format(destination))
 
@@ -52,6 +79,9 @@ def build_release():
             target = package / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(repository / relative, target)
+
+        if read_version(package / "version.php") != version:
+            raise ValueError("version.php changed during staging; run the build again")
 
         archive_path = staging / "release.zip"
         expected_entries = [PACKAGE_ROOT + "/" + relative for relative in RELEASE_FILES]

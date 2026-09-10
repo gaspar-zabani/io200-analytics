@@ -12,7 +12,7 @@ Use `py -3 tools/build_release.py` on Windows or `python3 tools/build_release.py
 on macOS if that is how Python 3 is installed. The script also works when invoked
 from another directory; paths are resolved relative to the script.
 
-The output is `dist/io200-analytics.zip`, containing one `io200-analytics/` folder.
+The output is `dist/io200-analytics-<version>.zip`, containing one `io200-analytics/` folder.
 Only files in `RELEASE_FILES` are included. Update that list when adding customer
 application files. Missing files or symlinks fail the build with a nonzero exit
 status. Development files and this tooling are excluded.
@@ -25,10 +25,15 @@ an interrupted process is never reused or packaged.
 
 ## Release workflow
 
-1. Commit the approved release changes.
+1. Set the release version in `version.php` and commit the approved release changes.
 2. Run the build command.
-3. Inspect/extract `dist/io200-analytics.zip` and check its customer contents.
+3. Inspect/extract `dist/io200-analytics-<version>.zip` and check its customer contents.
 4. Upload the ZIP to the corresponding release.
 
-The release title/tag supplies the version. The package filename stays fixed;
-there is no version file or publishing automation.
+`version.php` is the authoritative version source. Keep it as a PHP file containing
+only a quoted SemVer return statement (`<?php` followed by `return '…';`). The
+builder parses it without executing PHP and rejects missing or invalid versions.
+For example, version `1.1.0-beta.4` produces
+`dist/io200-analytics-1.1.0-beta.4.zip`; the folder inside remains `io200-analytics/`.
+Both `version.php` and `update-check.php` are required package files. Use the same
+version in the release title/tag. There is no publishing automation.

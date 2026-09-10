@@ -35,7 +35,7 @@ Customer installation requires no package-manager dependencies, build steps, ext
 5. Save the settings, visit the public photo site, and exercise a few photo actions.
 6. Open `/storage/custom/io200-analytics/dashboard.php` while still signed in.
 
-The installer creates `ioa_events` or adds the supported `is_admin` column to an older IOA table. Reopening a current installation does not recreate or clear existing data.
+The installer checks the current application’s required event table, columns, and indexes. It offers safe additions when needed and reports incompatible existing definitions without converting or deleting data. Reopening a compatible installation does not change it.
 
 Replace `RELEASE_VERSION` with the version shown for the release you installed. This query parameter prevents stale cached JavaScript during upgrades; update it whenever replacing `analytics.js`.
 
@@ -44,10 +44,10 @@ Replace `RELEASE_VERSION` with the version shown for the release you installed. 
 1. Download and extract the latest customer release ZIP.
 2. Upload the **contents** of its `io200-analytics` folder into the existing `/storage/custom/io200-analytics/` directory, replacing the application files at the same paths. Do not upload an extra nested `io200-analytics` folder or run the uninstaller.
 3. Sign in to IO200 Admin and open `/storage/custom/io200-analytics/install.php`. If a supported schema change is offered, submit/run the installer action to apply it. Opening the page alone does not apply changes. If it reports the installation is current, no schema action is needed.
-4. In IO200 Code Injection, update the `analytics.js?v=RELEASE_VERSION` query string to the new release version, then save. This is currently required to refresh cached tracking JavaScript; use the actual release version even if the installer example shows `v=1.0.0`.
+4. In IO200 Code Injection, update the `analytics.js?v=RELEASE_VERSION` query string to the new release version, then save. This is currently required to refresh cached tracking JavaScript. Use the actual release version.
 5. Open the dashboard and continue using the existing analytics data.
 
-Application file replacement does not replace IO200's configuration or the existing `ioa_events` database table. The installer currently supports table creation and adding a missing `is_admin` column, preserving existing records.
+Application file replacement does not replace IO200's configuration or the existing `ioa_events` database table. Setup creates the required table on first installation and adds missing compatible structures on updates. If a populated table is missing event IDs, timestamps, or event types, setup stops rather than inventing historical values. Technical failure details are available in the installer’s diagnostic section.
 
 ## Dashboard access
 
@@ -111,6 +111,10 @@ Email [ioa@jesperalvermark.se](mailto:ioa@jesperalvermark.se). Useful reports in
 
 ## Intended release package
 
+The release ZIP is named `io200-analytics-<version>.zip`, using the installed
+version from `version.php` (for example, `io200-analytics-1.1.0-beta.4.zip`).
+The folder inside always remains `io200-analytics/`.
+
 ```text
 io200-analytics/
 ├── analytics.js
@@ -119,6 +123,8 @@ io200-analytics/
 ├── install.php
 ├── uninstall.php
 ├── localization.php
+├── version.php
+├── update-check.php
 ├── lang/
 │   └── en.php
 ├── assets/
