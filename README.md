@@ -101,6 +101,48 @@ Email [ioa@jesperalvermark.se](mailto:ioa@jesperalvermark.se). Useful reports in
 
 ## Intended release package
 
+### Version and update status (Phase 1)
+
+`version.php` is the sole installed-version source; release packaging must update
+its returned SemVer string. The initial development version follows the latest
+`v1.1.0-beta.3` tag and the subsequent untagged work. The changelog currently
+lists only `1.0.0` and Unreleased, so tags provide the more recent release history.
+
+`update-check.php` owns the fixed HTTPS manifest URL, currently the intentionally
+inactive placeholder `https://updates.io200-analytics.invalid/manifest.json`.
+Replace that constant when the production endpoint is ready. Browser parameters
+cannot override it. The minimal manifest is `{"version":"1.2.0"}`; the future
+format may also include `package_url`, `sha256`, and `notes_url`, all ignored in
+Phase 1. No package is downloaded and no update action exists.
+
+Comparison follows SemVer 2.0 precedence, including numeric beta identifiers and
+ignoring build metadata. For example, beta.3 precedes beta.3.dev, which precedes
+beta.4 and then the stable release. A newer prerelease in the fixed manifest is
+eligible even for a stable installation; there is no channel selection in this
+phase. The future production manifest must therefore publish the intended channel.
+Equal or older remote versions mean “Up to date.”
+
+The authenticated dashboard checks via PHP cURL with TLS verification, no
+redirects, a two-second connection timeout, a four-second total timeout, and a
+16 KiB response limit. Only a JSON object with a valid version is accepted.
+Missing cURL, network/HTTP/TLS failures, malformed manifests, and cache failures
+produce “Update status unavailable,” without affecting analytics.
+
+A single installation/endpoint-specific JSON file in PHP's temporary directory
+caches valid responses for six hours and unavailable responses for fifteen
+minutes. A nonblocking file lock prevents concurrent checks. If the cache cannot
+be used, no remote request is made. Temp cleanup may cause an earlier recheck;
+there is no database or customer configuration change. A cache miss can delay
+the dashboard by at most the configured network timeout under normal cURL operation.
+
+Run `php tests/update-check.php` for version/manifest checks. On shared hosting,
+verify cURL availability, outbound HTTPS and CA certificates, temp-directory
+permissions and file locking, success/failure cache expiry, concurrent requests,
+and dashboard rendering with unavailable checks. Test a controlled fixed endpoint
+with valid, malformed, oversized, redirect, HTTP-error and slow responses before
+configuring production. Include `version.php` and `update-check.php` in every
+release package; the `tests/` directory is development-only.
+
 ```text
 io200-analytics/
 ├── assets/
@@ -108,6 +150,8 @@ io200-analytics/
 ├── analytics.js
 ├── collect.php
 ├── dashboard.php
+├── version.php
+├── update-check.php
 ├── install.php
 ├── uninstall.php
 ├── localization.php
