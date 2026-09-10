@@ -19,13 +19,13 @@ This external-testing build has an English-only interface.
 - MySQL or MariaDB with InnoDB, `utf8mb4`, and JSON column support.
 - A modern browser and an IO200 version with the current photo markup and download hooks.
 
-There are no package-manager dependencies, build steps, external services, or separate database credentials.
+Customer installation requires no package-manager dependencies, build steps, external services, or separate database credentials.
 
 ## Installation
 
-1. Download the [latest release](https://github.com/gaspar-zabani/io200-analytics/releases/latest), extract the ZIP, and upload its `io200-analytics` directory to `/storage/custom/io200-analytics/`.
+1. Download the [latest release](https://github.com/gaspar-zabani/io200-analytics/releases/latest) and extract the ZIP. Upload the **contents** of its `io200-analytics` folder into `/storage/custom/io200-analytics/` (create that destination if needed). The result must be `/storage/custom/io200-analytics/install.php`, not `/storage/custom/io200-analytics/io200-analytics/install.php`.
 2. Sign in to IO200 Admin.
-3. Open `/storage/custom/io200-analytics/install.php` and run the installer.
+3. Open `/storage/custom/io200-analytics/install.php`. Submit the installer action shown to create the table or apply a supported schema change; opening the page alone only checks the installation.
 4. In **IO200 Admin → Settings → Code Injection**, add:
 
    ```html
@@ -38,6 +38,16 @@ There are no package-manager dependencies, build steps, external services, or se
 The installer creates `ioa_events` or adds the supported `is_admin` column to an older IOA table. Reopening a current installation does not recreate or clear existing data.
 
 Replace `RELEASE_VERSION` with the version shown for the release you installed. This query parameter prevents stale cached JavaScript during upgrades; update it whenever replacing `analytics.js`.
+
+## Updating an existing installation
+
+1. Download and extract the latest customer release ZIP.
+2. Upload the **contents** of its `io200-analytics` folder into the existing `/storage/custom/io200-analytics/` directory, replacing the application files at the same paths. Do not upload an extra nested `io200-analytics` folder or run the uninstaller.
+3. Sign in to IO200 Admin and open `/storage/custom/io200-analytics/install.php`. If a supported schema change is offered, submit/run the installer action to apply it. Opening the page alone does not apply changes. If it reports the installation is current, no schema action is needed.
+4. In IO200 Code Injection, update the `analytics.js?v=RELEASE_VERSION` query string to the new release version, then save. This is currently required to refresh cached tracking JavaScript; use the actual release version even if the installer example shows `v=1.0.0`.
+5. Open the dashboard and continue using the existing analytics data.
+
+Application file replacement does not replace IO200's configuration or the existing `ioa_events` database table. The installer currently supports table creation and adding a missing `is_admin` column, preserving existing records.
 
 ## Dashboard access
 
@@ -103,8 +113,6 @@ Email [ioa@jesperalvermark.se](mailto:ioa@jesperalvermark.se). Useful reports in
 
 ```text
 io200-analytics/
-├── assets/
-│   └── dashboard-preview.png
 ├── analytics.js
 ├── collect.php
 ├── dashboard.php
@@ -113,9 +121,10 @@ io200-analytics/
 ├── localization.php
 ├── lang/
 │   └── en.php
+├── assets/
+│   └── dashboard-preview.png
 ├── README.md
-├── CHANGELOG.md
-└── ROADMAP.md
+└── LICENSE
 ```
 
-Do not distribute `References/`, `.git/`, `.gitignore`, editor/system metadata, logs, exports, test data, temporary files, ZIPs, or copied IO200 source. Nothing under `References/` is part of IO200 Analytics.
+The customer ZIP contains only the files above. It excludes `.git/`, `.gitignore`, `References/`, `ROADMAP.md`, `CHANGELOG.md`, `tools/`, `dist/`, `tests/`, editor/system metadata, logs, exports, test data, temporary files, and copied IO200 source.
