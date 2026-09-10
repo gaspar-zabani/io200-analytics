@@ -676,6 +676,27 @@ function formatActivityTimestamp($timestamp)
     return $date->format('M j, H:i');
 }
 
+function formatActivityRange($firstTimestamp, $lastTimestamp)
+{
+    $startLabel = formatActivityTimestamp($firstTimestamp);
+    $endLabel = formatActivityTimestamp($lastTimestamp);
+
+    try {
+        $start = new DateTimeImmutable($firstTimestamp);
+        $end = new DateTimeImmutable($lastTimestamp);
+        if ($start->format('Y-m-d H:i') === $end->format('Y-m-d H:i')) {
+            return $startLabel;
+        }
+        if ($start->format('Y-m-d') === $end->format('Y-m-d')) {
+            return $startLabel . '–' . $end->format('H:i');
+        }
+    } catch (Throwable $e) {
+        // Preserve the existing timestamp fallback for malformed recorded values.
+    }
+
+    return $startLabel . ' – ' . $endLabel;
+}
+
 function formatActivitySpan($firstTimestamp, $lastTimestamp)
 {
     if (!is_string($firstTimestamp) || !is_string($lastTimestamp)) {
@@ -975,7 +996,8 @@ try {
                 $currentSessionId = $sessionId;
                 $currentVisit = [
                     'session_id' => $sessionId,
-                    'first_event_id' => (int)$row['id'],
+                    // Anchor the Visit ID to its original first event, not its display order.
+                    'visit_id' => (int)$row['id'],
                     'last_event_id' => (int)$row['id'],
                     'first_activity' => $row['created_at'],
                     'latest_activity' => $row['created_at'],
@@ -1076,7 +1098,7 @@ try {
     foreach ($recentVisits as &$visit) {
         $photos = [];
         $visit['downloads'] = 0;
-        foreach ($visit['events'] as &$event) {
+        foreach ($visit['events'] as $eventIndex => &$event) {
             $ids = $event['event_type'] === 'batch_download'
                 ? $event['photo_ids'] : [$event['photo_id']];
             $seen = [];
@@ -1095,9 +1117,13 @@ try {
                         'photo_id' => $photoId, 'views' => 0, 'downloads' => 0
                     ];
                 }
-                if ($event['event_type'] === 'photo_view') $photos[$photoId]['views']++;
+                if ($event['event_type'] === 'photo_view') {
+                    $photos[$photoId]['views']++;
+                    $photos[$photoId]['latest_views'] = $eventIndex;
+                }
                 if (in_array($event['event_type'], ['photo_download', 'batch_download'], true)) {
                     $photos[$photoId]['downloads']++;
+                    $photos[$photoId]['latest_downloads'] = $eventIndex;
                 }
             }
             if ($event['event_type'] === 'batch_download') {
@@ -1110,15 +1136,22 @@ try {
         }
         unset($event);
         $visit['highlights'] = [];
+        $visit['hero_candidates'] = [];
         foreach (['views', 'downloads'] as $group) {
             $ranked = array_values(array_filter($photos, static function ($photo) use ($group) {
                 return $photo[$group] > 0;
             }));
+            // Events are ordered by timestamp and ID, so the index breaks recency ties.
             usort($ranked, static function ($a, $b) use ($group) {
-                return ($b[$group] <=> $a[$group]) ?: ($a['photo_id'] <=> $b['photo_id']);
+                return ($b[$group] <=> $a[$group])
+                    ?: ($b['latest_' . $group] <=> $a['latest_' . $group])
+                    ?: ($a['photo_id'] <=> $b['photo_id']);
             });
             if ($group === 'views') $visit['viewed_photos'] = $ranked;
             if ($ranked) $visit['highlights'][$group] = array_slice($ranked, 0, 5);
+            foreach ($ranked as $photo) {
+                $visit['hero_candidates'][] = $photo['photo_id'];
+            }
         }
         // Keep separate actions in recorded timestamp/ID order, including repeated photos.
         $basketActions = array_values(array_filter($visit['events'], static function ($event) {
@@ -1128,6 +1161,22 @@ try {
         if ($basketActions) {
             $visit['highlights']['basket'] = array_slice($basketActions, -5);
         }
+        foreach (array_reverse($basketActions) as $event) {
+            $visit['hero_candidates'][] = (int)$event['photo_id'];
+        }
+    }
+    unset($visit);
+
+    // Resolve after all existing Visit image data is collected, skipping missing URLs.
+    foreach ($recentVisits as &$visit) {
+        $visit['hero_image'] = null;
+        foreach ($visit['hero_candidates'] as $photoId) {
+            if (isset($visitImages[$photoId])) {
+                $visit['hero_image'] = $visitImages[$photoId];
+                break;
+            }
+        }
+        unset($visit['hero_candidates']);
     }
     unset($visit);
 
@@ -1548,77 +1597,46 @@ try {
                 $visit['context_sections'][] = [
                     'key' => $contextKey,
                     'title' => $contextTitle,
+                    'first_activity' => $event['created_at'],
+                    'latest_activity' => $event['created_at'],
                     'items' => []
                 ];
                 $sectionIndex++;
+                $activityIndexes = [];
             }
 
+            $visit['context_sections'][$sectionIndex]['latest_activity'] = $event['created_at'];
             $items =& $visit['context_sections'][$sectionIndex]['items'];
+            $type = $event['event_type'];
 
-            if ($event['event_type'] === 'batch_download') {
+            // Keep header metrics independent of the activity presentation.
+            if ($type === 'photo_view' && $event['photo_id'] !== null) {
+                $viewedPhotoIds[(string)$event['photo_id']] = true;
+            }
+
+            if ($type === 'batch_download') {
                 $items[] = [
                     'type' => 'selection_download',
-                    'created_at' => $event['created_at'],
-                    'formatted_created_at' => $event['formatted_created_at'],
-                    'photo_ids' => $event['selection_photo_ids'],
-                    'photo_count' => $event['photo_count']
+                    'photo_ids' => $event['selection_photo_ids'] ?? [],
+                    'actions' => 1
                 ];
-                unset($items);
-                continue;
-            }
-
-            if (!in_array(
-                $event['event_type'],
-                ['photo_view', 'photo_download', 'basket_add', 'basket_remove'],
-                true
-            )) {
-                $items[] = [
-                    'type' => 'recorded_activity',
-                    'created_at' => $event['created_at'],
-                    'formatted_created_at' => $event['formatted_created_at']
-                ];
-                unset($items);
-                continue;
-            }
-
-            $photoId = $event['photo_id'] !== null
-                ? (string)$event['photo_id']
-                : null;
-            $lastItemIndex = count($items) - 1;
-            $canAggregate = $photoId !== null &&
-                $lastItemIndex >= 0 &&
-                $items[$lastItemIndex]['type'] === 'photo_activity' &&
-                $items[$lastItemIndex]['photo_id'] === $photoId;
-
-            if (!$canAggregate) {
-                $items[] = [
-                    'type' => 'photo_activity',
-                    'photo_id' => $photoId,
-                    'title' => $event['title'],
-                    'created_at' => $event['created_at'],
-                    'formatted_created_at' => $event['formatted_created_at'],
-                    'views' => 0,
-                    'downloads' => 0,
-                    'basket_adds' => 0,
-                    'basket_removes' => 0
-                ];
-                $lastItemIndex++;
-            }
-
-            if ($event['event_type'] === 'photo_view') {
-                $items[$lastItemIndex]['views']++;
-
-                if ($photoId !== null) {
-                    $viewedPhotoIds[$photoId] = true;
+                // Do not move later activity ahead of this Selection download.
+                $activityIndexes = [];
+            } elseif (in_array($type, ['photo_view', 'photo_download', 'basket_add', 'basket_remove'], true)) {
+                if (!isset($activityIndexes[$type])) {
+                    $activityIndexes[$type] = count($items);
+                    $items[] = ['type' => $type, 'actions' => 0, 'photo_ids' => []];
                 }
-            } elseif ($event['event_type'] === 'photo_download') {
-                $items[$lastItemIndex]['downloads']++;
-            } elseif ($event['event_type'] === 'basket_add') {
-                $items[$lastItemIndex]['basket_adds']++;
-            } elseif ($event['event_type'] === 'basket_remove') {
-                $items[$lastItemIndex]['basket_removes']++;
+                $index = $activityIndexes[$type];
+                $items[$index]['actions']++;
+                $photoId = (int)$event['photo_id'];
+                if ($photoId > 0) {
+                    $items[$index]['photo_ids'][$photoId] = $photoId;
+                }
+            } else {
+                $items[] = ['type' => 'recorded_activity', 'actions' => 1, 'photo_ids' => []];
+                $activityIndexes = [];
             }
-
             unset($items);
         }
 
@@ -1928,6 +1946,10 @@ try {
             font-size: 18px;
         }
 
+        .photo-tab__mobile-label {
+            display: none;
+        }
+
         .photo-tabs__content {
             border: 1px solid #e4e5e7;
             border-radius: 0 0 12px 12px;
@@ -2054,6 +2076,9 @@ try {
         .visit-highlight-title { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
         .visit-journey { margin: 4px 10px 16px; }
         .visit-journey > summary { padding: 8px 0; cursor: pointer; font-size: 13px; color: #4f5358; }
+        .visit-activity-summary .visit-context-section__title { padding: 6px 0 4px; }
+        .visit-activity-summary__item { margin: 12px 0; min-width: 0; }
+        .visit-activity-summary .selection-preview { overflow-wrap: anywhere; }
         .selection-preview { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
         @media (max-width: 600px) { .visit-highlights { grid-template-columns: 1fr; } }
 
@@ -2075,15 +2100,18 @@ try {
 
             padding: 17px 32px 17px 10px;
 
-            cursor: pointer;
             list-style: none;
+        }
+
+        details.visit-item > .visit-summary {
+            cursor: pointer;
         }
 
         .visit-summary::-webkit-details-marker {
             display: none;
         }
 
-        .visit-summary::after {
+        details.visit-item > .visit-summary::after {
             position: absolute;
             right: 10px;
             top: 18px;
@@ -2102,21 +2130,6 @@ try {
             border-radius: 6px;
         }
 
-        .visit-summary__marker {
-            display: grid;
-            place-items: center;
-            width: 80px;
-            height: 56px;
-            border-radius: 6px;
-            background: #f0f1f2;
-            color: #858b92;
-        }
-
-        .visit-summary__marker svg {
-            width: 28px;
-            height: 28px;
-        }
-
         .visit-summary__content {
             display: grid;
             gap: 5px;
@@ -2131,11 +2144,26 @@ try {
             min-width: 0;
         }
 
-        .visit-summary__time {
+        .visit-summary__time,
+        .visit-summary__id {
             font-size: 13px;
             font-weight: 400;
             line-height: 1.4;
             color: #73777d;
+        }
+
+        .visit-summary__id {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-left: auto;
+            white-space: nowrap;
+        }
+
+        .visit-summary__id svg {
+            width: 13px;
+            height: 13px;
+            flex: 0 0 13px;
         }
 
         .visit-summary__metrics {
@@ -2401,28 +2429,96 @@ try {
             }
 
             .photo-tabs__list {
-                grid-template-columns: 1fr;
                 gap: 6px;
             }
 
-            .photo-tab {
-                border-radius: 10px;
+            .photo-tab,
+            .photo-tab:hover {
+                display: grid;
+                grid-template-rows: 42px auto;
+                align-items: center;
+                justify-items: center;
+                gap: 6px;
+                padding: 8px 4px;
+                border: 1px solid transparent;
+                border-radius: 6px 6px 0 0;
+                background: transparent;
+                box-shadow: none;
+                color: #73777d;
+            }
+
+            .photo-tab > :not(.photo-tab__mobile-label):not(.photo-item--featured):not(.visit-preview),
+            .photo-tab .photo-item__body,
+            .photo-tab .photo-item__meta,
+            .photo-tab .photo-item__id {
+                display: none;
+            }
+
+            .photo-tab > .photo-item--featured,
+            .photo-tab > .visit-preview {
+                grid-row: 1;
+                min-width: 0;
+            }
+
+            .photo-tab .photo-item__thumbnail {
+                width: 60px;
+                height: 42px;
+                border-radius: 6px;
+            }
+
+            .photo-tab__mobile-label {
+                display: block;
+                grid-row: 2;
+                font-size: 13px;
+                font-weight: 400;
+                white-space: nowrap;
             }
 
             .photo-tab[aria-selected="true"] {
-                margin-bottom: 0;
+                margin-bottom: -1px;
+                border-color: #e4e5e7;
+                border-bottom-color: white;
+                background: white;
+                box-shadow: none;
+                color: #41464c;
+            }
 
-                border-bottom-color: #e4e5e7;
+            .photo-tab[aria-selected="true"] .photo-tab__mobile-label {
+                font-weight: 700;
             }
 
             .photo-tabs__content {
-                margin-top: 8px;
-
-                border-radius: 12px;
+                margin-top: 0;
+                border-radius: 0 0 12px 12px;
             }
 
             .visit-summary__metrics {
                 gap: 10px 18px;
+            }
+
+            .visit-summary {
+                min-height: 110px;
+            }
+
+            .visit-summary > .photo-item__thumbnail {
+                align-self: start;
+            }
+
+            .visit-summary__id {
+                position: absolute;
+                top: 77px; /* Header padding + thumbnail height + 4px caption gap. */
+                left: 10px;
+                width: 80px;
+                justify-content: center;
+                margin-left: 0;
+                font-size: 11px;
+                color: #858b92;
+            }
+
+            .visit-summary__id svg {
+                width: 12px;
+                height: 12px;
+                flex-basis: 12px;
             }
 
         }
@@ -2431,14 +2527,6 @@ try {
 
             body {
                 padding: 24px 12px;
-            }
-
-            .photo-tab {
-                padding: 13px;
-            }
-
-            .photo-tab .photo-item__meta--truncate {
-                max-width: 62vw;
             }
 
             .visit-timeline__event {
@@ -2628,18 +2716,18 @@ try {
                 tabindex="<?= $photoTab === 'visits' ? '0' : '-1' ?>"
                 data-photo-tab="visits"
             >
+                <span class="photo-tab__mobile-label"><?= ioa_t('metric_visits') ?></span>
                 <h2 class="photo-tab__title"><?= ioa_t('metric_visits') ?></h2>
 
                 <?php if ($visitSummary['visits'] > 0): ?>
-                    <div class="visit-preview">
+                    <div class="photo-item photo-item--featured">
                         <?php if ($latestVisitImage !== null): ?>
-                            <div class="photo-item photo-item--featured">
-                                <img class="photo-item__thumbnail photo-item__thumbnail--featured" src="<?= h($latestVisitImage) ?>" alt="" loading="lazy">
-                                <span class="photo-item__meta"><?= ioa_t('latest_visit') ?></span>
-                            </div>
+                            <img class="photo-item__thumbnail photo-item__thumbnail--featured" src="<?= h($latestVisitImage) ?>" alt="" loading="lazy">
                         <?php endif; ?>
-                        <div class="photo-item__id">
-                            <?= number_format($visitSummary['visits'], 0, ',', ' ') ?> <?= ioa_t('visits_lowercase') ?>
+                        <div class="photo-item__body">
+                            <div class="photo-item__id">
+                                <?= h(formatCountLabel($visitSummary['visits'], 'one_visit', 'visits_count', '1 visit', '%d visits')) ?>
+                            </div>
                         </div>
                     </div>
                 <?php else: ?>
@@ -2661,6 +2749,7 @@ try {
                 tabindex="<?= $photoTab === 'views' ? '0' : '-1' ?>"
                 data-photo-tab="views"
             >
+                <span class="photo-tab__mobile-label"><?= ioa_t('tab_viewed_mobile') ?></span>
                 <h2 class="photo-tab__title"><?= ioa_t('tab_most_viewed') ?></h2>
 
                 <?php if ($mostViewedPhoto): ?>
@@ -2676,7 +2765,7 @@ try {
 
                         <div class="photo-item__body">
                             <div class="photo-item__id">
-                                <?= ioa_t('photo') ?> <?= h($mostViewedPhoto['photo_id']) ?>
+                                <?= h(formatCountLabel($mostViewedPhoto['views'], 'one_view', 'views_count', '1 view', '%d views')) ?>
                             </div>
                         </div>
                     </div>
@@ -2699,6 +2788,7 @@ try {
                 tabindex="<?= $photoTab === 'downloads' ? '0' : '-1' ?>"
                 data-photo-tab="downloads"
             >
+                <span class="photo-tab__mobile-label"><?= ioa_t('tab_downloads_mobile') ?></span>
                 <h2 class="photo-tab__title"><?= ioa_t('tab_most_downloaded') ?></h2>
 
                 <?php if ($mostDownloadedPhoto): ?>
@@ -2714,7 +2804,7 @@ try {
 
                         <div class="photo-item__body">
                             <div class="photo-item__id">
-                                <?= ioa_t('photo') ?> <?= h($mostDownloadedPhoto['photo_id']) ?>
+                                <?= h(formatCountLabel($mostDownloadedPhoto['downloads'], 'one_download', 'downloads_count', '1 download', '%d downloads')) ?>
                             </div>
                         </div>
                     </div>
@@ -2910,11 +3000,18 @@ try {
                 <?php else: ?>
                     <div class="visit-list">
                         <?php foreach ($recentVisits as $visit): ?>
-                            <details class="visit-item">
-                                <summary class="visit-summary">
-                                    <span class="visit-summary__marker" aria-hidden="true">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" focusable="false"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></svg>
-                                    </span>
+                            <?php
+                            $isExpandable = count($visit['events']) > 1;
+                            $visitTag = $isExpandable ? 'details' : 'div';
+                            $headerTag = $isExpandable ? 'summary' : 'div';
+                            ?>
+                            <<?= $visitTag ?> class="visit-item">
+                                <<?= $headerTag ?> class="visit-summary">
+                                    <?php if ($visit['hero_image'] !== null): ?>
+                                        <img class="photo-item__thumbnail" src="<?= h($visit['hero_image']) ?>" alt="" loading="lazy">
+                                    <?php else: ?>
+                                        <span class="photo-item__thumbnail" aria-hidden="true"></span>
+                                    <?php endif; ?>
                                     <span class="visit-summary__content">
                                         <span class="visit-summary__metrics">
                                             <?php
@@ -2957,10 +3054,16 @@ try {
                                                     <span class="visit-summary__accessible"><?= h($spanLabel) ?></span>
                                                 </span>
                                             <?php endif; ?>
+                                            <span class="visit-summary__id">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4-6 1.5 0 2 1.5 2 3 0 2.73-1 5-1 7v4H4ZM20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4-6-1.5 0-2 1.5-2 3 0 2.73 1 5 1 7v4h4ZM4 20a2 2 0 0 0 4 0v-1H4v1ZM16 22h4a2 2 0 0 1-4 0Z"/></svg>
+                                                <span class="visit-summary__accessible"><?= h(sprintf(ioa_translate('visit_id'), $visit['visit_id'])) ?></span>
+                                                <span aria-hidden="true"><?= (int)$visit['visit_id'] ?></span>
+                                            </span>
                                         </span>
                                     </span>
-                                </summary>
+                                </<?= $headerTag ?>>
 
+                                <?php if ($isExpandable): ?>
                                 <div class="visit-highlights">
                                     <?php foreach ($visit['highlights'] as $group => $photos): ?>
                                         <section class="visit-highlight-group">
@@ -3010,113 +3113,67 @@ try {
                                 </div>
                                 <details class="visit-journey">
                                     <summary><?= ioa_t('show_activity') ?></summary>
-                                <div class="visit-timeline">
+                                <div class="visit-timeline visit-activity-summary">
                                     <?php foreach ($visit['context_sections'] as $section): ?>
                                         <section class="visit-context-section">
-                                            <?php if ($section['title'] !== null): ?>
-                                                <h3 class="visit-context-section__title">
-                                                    <?= h($section['title']) ?>
-                                                </h3>
-                                            <?php endif; ?>
-
-                                            <div class="visit-context-section__items">
-                                                <?php foreach ($section['items'] as $item): ?>
-                                                    <div class="visit-timeline__event">
-                                                        <time
-                                                            class="visit-timeline__time"
-                                                            datetime="<?= h($item['created_at']) ?>"
-                                                        >
-                                                            <?= h($item['formatted_created_at']) ?>
-                                                        </time>
-
-                                                        <div class="visit-timeline__content">
-                                                            <?php if ($item['type'] === 'selection_download'): ?>
-                                                                <div class="visit-timeline__action">
-                                                                    <?= ioa_t('selection_download') ?>
-                                                                </div>
-
-                                                                <div class="visit-timeline__meta">
-                                                                    <?= h(formatCountLabel($item['photo_count'], 'one_photo_downloaded', 'photos_downloaded_count', '%d photo downloaded', '%d photos downloaded')) ?>
-                                                                </div>
-                                                                <?php if ($section['title'] !== null): ?>
-                                                                    <div class="visit-timeline__meta"><?= h(sprintf(ioa_translate('activity_on_context'), $section['title'])) ?></div>
+                                            <h3 class="visit-context-section__title"><?= h($section['title'] ?? ioa_translate('activity_context_unknown')) ?></h3>
+                                            <div class="visit-timeline__meta">
+                                                <?= h(formatActivityRange($section['first_activity'], $section['latest_activity'])) ?>
+                                            </div>
+                                            <?php foreach ($section['items'] as $item): ?>
+                                                <?php
+                                                $actionLabels = [
+                                                    'photo_view' => ['one_photo_viewed', 'photos_viewed_count'],
+                                                    'photo_download' => ['activity_one_direct_download', 'activity_direct_downloads'],
+                                                    'basket_add' => ['activity_one_basket_add', 'activity_basket_adds'],
+                                                    'basket_remove' => ['activity_one_basket_remove', 'activity_basket_removes']
+                                                ];
+                                                $photoIds = array_values($item['photo_ids']);
+                                                $photoCount = count($photoIds);
+                                                $displayCount = $item['type'] === 'photo_view' ? $photoCount : $item['actions'];
+                                                $previewIds = [];
+                                                foreach ($photoIds as $photoId) {
+                                                    if (!isset($visitImages[$photoId])) continue;
+                                                    $previewIds[] = $photoId;
+                                                    if (count($previewIds) === 5) break;
+                                                }
+                                                $hasImages = count($previewIds) > 0;
+                                                if (!$hasImages) $previewIds = array_slice($photoIds, 0, 5);
+                                                ?>
+                                                <div class="visit-activity-summary__item">
+                                                    <div class="visit-timeline__action">
+                                                        <?php if (isset($actionLabels[$item['type']])): ?>
+                                                            <?= h(sprintf(ioa_translate($actionLabels[$item['type']][$displayCount === 1 ? 0 : 1]), $displayCount)) ?>
+                                                        <?php else: ?>
+                                                            <?= ioa_t($item['type']) ?>
+                                                        <?php endif; ?>
+                                                        <?php if ($item['type'] === 'selection_download'): ?>
+                                                            &middot; <?= h(sprintf(ioa_translate($photoCount === 1 ? 'one_selected_photo' : 'selected_photos_count'), $photoCount)) ?>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                    <?php if ($previewIds): ?>
+                                                        <div class="selection-preview">
+                                                            <?php foreach ($previewIds as $photoId): ?>
+                                                                <?php $photoLabel = $photoTitles[$photoId] ?? (ioa_translate('photo') . ' ' . $photoId); ?>
+                                                                <?php if ($hasImages): ?>
+                                                                    <img class="visit-highlight-image" src="<?= h($visitImages[$photoId]) ?>" alt="<?= h($photoLabel) ?>" title="<?= h($photoLabel . ' (' . ioa_translate('photo') . ' ' . $photoId . ')') ?>" loading="lazy">
+                                                                <?php else: ?>
+                                                                    <span class="photo-item__meta" title="<?= h(ioa_translate('photo') . ' ' . $photoId) ?>"><?= h($photoLabel) ?></span>
                                                                 <?php endif; ?>
-                                                                <div class="selection-preview">
-                                                                    <?php $previewCount = 0; ?>
-                                                                    <?php foreach ($item['photo_ids'] as $photoId): ?>
-                                                                        <?php if (!isset($visitImages[$photoId])) continue; ?>
-                                                                        <img class="visit-highlight-image" src="<?= h($visitImages[$photoId]) ?>" alt="<?= h($photoTitles[$photoId] ?? (ioa_translate('photo') . ' ' . $photoId)) ?>" loading="lazy">
-                                                                        <?php if (++$previewCount === 5) break; ?>
-                                                                    <?php endforeach; ?>
-                                                                    <?php if ($item['photo_count'] > $previewCount): ?>
-                                                                        <span class="photo-item__meta"><?= h(sprintf(ioa_translate('more_photos_count'), $item['photo_count'] - $previewCount)) ?></span>
-                                                                    <?php endif; ?>
-                                                                </div>
-                                                            <?php elseif ($item['type'] === 'photo_activity'): ?>
-                                                                <?php
-                                                                $photoLabel = ioa_t('photo') . ' ' . (
-                                                                    $item['photo_id'] !== null
-                                                                        ? $item['photo_id']
-                                                                        : '–'
-                                                                );
-                                                                ?>
-
-                                                                <div class="visit-timeline__action">
-                                                                    <?= !empty($item['title'])
-                                                                        ? '“' . h($item['title']) . '”'
-                                                                        : h($photoLabel) ?>
-                                                                </div>
-
-                                                                <?php if (!empty($item['title'])): ?>
-                                                                    <div class="visit-timeline__meta">
-                                                                        <?= h($photoLabel) ?>
-                                                                    </div>
-                                                                <?php endif; ?>
-
-                                                                <div class="visit-activity-metrics">
-                                                                    <?php if ($item['views'] > 0): ?>
-                                                                        <span><?= h(formatCountLabel(
-                                                                            $item['views'],
-                                                                            'one_view',
-                                                                            'views_count',
-                                                                            '%d view',
-                                                                            '%d views'
-                                                                        )) ?></span>
-                                                                    <?php endif; ?>
-                                                                    <?php if ($item['downloads'] > 0): ?>
-                                                                        <span><?= h(formatCountLabel(
-                                                                            $item['downloads'],
-                                                                            'one_download',
-                                                                            'downloads_count',
-                                                                            '%d download',
-                                                                            '%d downloads'
-                                                                        )) ?></span>
-                                                                    <?php endif; ?>
-                                                                    <?php if ($item['basket_adds'] > 0): ?>
-                                                                        <span><?= $item['basket_adds'] === 1
-                                                                            ? ioa_t('added_to_basket')
-                                                                            : sprintf(ioa_t('added_to_basket_count'), $item['basket_adds']) ?></span>
-                                                                    <?php endif; ?>
-                                                                    <?php if ($item['basket_removes'] > 0): ?>
-                                                                        <span><?= $item['basket_removes'] === 1
-                                                                            ? ioa_t('removed_from_basket')
-                                                                            : sprintf(ioa_t('removed_from_basket_count'), $item['basket_removes']) ?></span>
-                                                                    <?php endif; ?>
-                                                                </div>
-                                                            <?php else: ?>
-                                                                <div class="visit-timeline__action">
-                                                                    <?= ioa_t('recorded_activity') ?>
-                                                                </div>
+                                                            <?php endforeach; ?>
+                                                            <?php if ($photoCount > count($previewIds)): ?>
+                                                                <span class="photo-item__meta"><?= h(sprintf(ioa_translate('more_photos_count'), $photoCount - count($previewIds))) ?></span>
                                                             <?php endif; ?>
                                                         </div>
-                                                    </div>
-                                                <?php endforeach; ?>
-                                            </div>
+                                                    <?php endif; ?>
+                                                </div>
+                                            <?php endforeach; ?>
                                         </section>
                                     <?php endforeach; ?>
                                 </div>
                                 </details>
-                            </details>
+                                <?php endif; ?>
+                            </<?= $visitTag ?>>
                         <?php endforeach; ?>
                     </div>
                 <?php endif; ?>
