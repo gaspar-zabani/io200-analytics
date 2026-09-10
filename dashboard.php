@@ -1696,10 +1696,6 @@ try {
     die(ioa_t('app_name') . ': ' . ioa_t('dashboard_load_error'));
 }
 
-require_once __DIR__ . '/update-check.php';
-$ioaInstalledVersion = require __DIR__ . '/version.php';
-$ioaUpdate = ioaUpdateStatus($ioaInstalledVersion);
-
 ?>
 <!doctype html>
 <html lang="<?= ioa_language_code() ?>">
@@ -3188,13 +3184,6 @@ $ioaUpdate = ioaUpdateStatus($ioaInstalledVersion);
     </section>
 
     <footer class="dashboard-footer">
-        <div>IOA <?= h($ioaInstalledVersion) ?> &middot;
-            <?php if ($ioaUpdate['status'] === 'available'): ?>
-                <?= h(sprintf(ioa_translate('update_available'), $ioaUpdate['version'])) ?>
-            <?php else: ?>
-                <?= ioa_t($ioaUpdate['status'] === 'current' ? 'update_current' : 'update_unavailable') ?>
-            <?php endif; ?>
-        </div>
         <a href="mailto:ioa@jesperalvermark.se">
             <?= ioa_t('feedback') ?>: ioa@jesperalvermark.se
         </a>
