@@ -24,6 +24,7 @@ return [
     'metric_added_to_basket' => 'Added to basket',
     'metric_downloaded_images' => 'Downloaded images',
     'metric_visits' => 'Visits',
+    'visit_details' => 'Details',
     'metric_basket' => 'Basket',
     'photo_analytics' => 'Image analytics',
     'tab_most_viewed' => 'Most viewed',

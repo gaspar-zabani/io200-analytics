@@ -2104,6 +2104,7 @@ try {
         }
 
         details.visit-item > .visit-summary {
+            padding-right: 80px;
             cursor: pointer;
         }
 
@@ -2116,12 +2117,14 @@ try {
             right: 10px;
             top: 18px;
 
-            content: '▾';
+            content: attr(data-disclosure-label) ' ▾';
             color: #777a80;
+            font-size: 12px;
+            font-weight: 400;
         }
 
-        .visit-item[open] > .visit-summary::after {
-            content: '▴';
+        details.visit-item[open] > .visit-summary::after {
+            content: attr(data-disclosure-label) ' ▴';
         }
 
         .visit-summary:focus-visible {
@@ -2158,6 +2161,67 @@ try {
             gap: 4px;
             margin-left: auto;
             white-space: nowrap;
+        }
+
+        .visit-summary__controls {
+            display: contents;
+        }
+
+        .visit-summary__disclosure {
+            display: none;
+        }
+
+        @media (min-width: 851px) {
+            .visit-summary,
+            details.visit-item > .visit-summary {
+                padding-right: 10px;
+            }
+
+            details.visit-item > .visit-summary::after {
+                display: none;
+            }
+
+            .visit-summary__content {
+                grid-template-columns: minmax(0, 1fr) 74px;
+                column-gap: 16px;
+            }
+
+            .visit-summary__metrics {
+                grid-column: 1;
+                grid-row: 1;
+            }
+
+            .visit-summary__identity {
+                grid-column: 1;
+                grid-row: 2;
+            }
+
+            .visit-summary__controls .visit-summary__id {
+                grid-column: 2;
+                grid-row: 1;
+                align-self: center;
+                justify-self: end;
+                margin-left: 0;
+            }
+
+            .visit-summary__disclosure {
+                grid-column: 2;
+                grid-row: 2;
+                align-self: center;
+                justify-self: end;
+                display: inline;
+                color: #777a80;
+                font-size: 12px;
+                font-weight: 400;
+            }
+
+            .visit-summary__disclosure::after {
+                content: ' ▾';
+            }
+
+            .visit-item[open] .visit-summary__disclosure::after {
+                content: ' ▴';
+            }
         }
 
         .visit-summary__id svg {
@@ -2524,6 +2588,19 @@ try {
         }
 
         @media (max-width: 650px) {
+
+            details.visit-item > .visit-summary {
+                padding-right: 32px;
+            }
+
+            details.visit-item > .visit-summary::after {
+                content: '▾';
+                font-size: 16px;
+            }
+
+            details.visit-item[open] > .visit-summary::after {
+                content: '▴';
+            }
 
             body {
                 padding: 24px 12px;
@@ -3006,7 +3083,7 @@ try {
                             $headerTag = $isExpandable ? 'summary' : 'div';
                             ?>
                             <<?= $visitTag ?> class="visit-item">
-                                <<?= $headerTag ?> class="visit-summary">
+                                <<?= $headerTag ?> class="visit-summary"<?= $isExpandable ? ' data-disclosure-label="' . h(ioa_translate('visit_details') === 'visit_details' ? 'Details' : ioa_translate('visit_details')) . '"' : '' ?>>
                                     <?php if ($visit['hero_image'] !== null): ?>
                                         <img class="photo-item__thumbnail" src="<?= h($visit['hero_image']) ?>" alt="" loading="lazy">
                                     <?php else: ?>
@@ -3054,11 +3131,16 @@ try {
                                                     <span class="visit-summary__accessible"><?= h($spanLabel) ?></span>
                                                 </span>
                                             <?php endif; ?>
+                                        </span>
+                                        <span class="visit-summary__controls">
                                             <span class="visit-summary__id">
                                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4-6 1.5 0 2 1.5 2 3 0 2.73-1 5-1 7v4H4ZM20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4-6-1.5 0-2 1.5-2 3 0 2.73 1 5 1 7v4h4ZM4 20a2 2 0 0 0 4 0v-1H4v1ZM16 22h4a2 2 0 0 1-4 0Z"/></svg>
                                                 <span class="visit-summary__accessible"><?= h(sprintf(ioa_translate('visit_id'), $visit['visit_id'])) ?></span>
                                                 <span aria-hidden="true"><?= (int)$visit['visit_id'] ?></span>
                                             </span>
+                                            <?php if ($isExpandable): ?>
+                                                <span class="visit-summary__disclosure"><?= h(ioa_translate('visit_details') === 'visit_details' ? 'Details' : ioa_translate('visit_details')) ?></span>
+                                            <?php endif; ?>
                                         </span>
                                     </span>
                                 </<?= $headerTag ?>>
