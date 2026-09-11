@@ -1,0 +1,116 @@
+(() => {
+    const root = document.querySelector('[data-photo-search]');
+    if (!root) return;
+    const input = root.querySelector('input');
+    const list = root.querySelector('[role="listbox"]');
+    const status = root.querySelector('[role="status"]');
+    let timer, controller, generation = 0, active = -1, results = [];
+    const close = () => {
+        list.hidden = true;
+        input.setAttribute('aria-expanded', 'false');
+        input.removeAttribute('aria-activedescendant');
+        active = -1;
+    };
+    const cancel = () => {
+        clearTimeout(timer);
+        controller?.abort();
+        generation++;
+    };
+    const select = index => {
+        const photo = results[index];
+        if (!photo) return;
+        cancel();
+        root.selectedPhoto = photo;
+        root.dataset.selectedPhotoId = photo.id;
+        input.value = photo.title || `Photo ${photo.id}`;
+        status.textContent = `Selected: ${input.value} · Photo ${photo.id}`;
+        close();
+    };
+    const highlight = index => {
+        active = index;
+        Array.from(list.children).forEach((item, i) => item.setAttribute('aria-selected', String(i === active)));
+        input.setAttribute('aria-activedescendant', list.children[active].id);
+        list.children[active].scrollIntoView({block: 'nearest'});
+    };
+    async function search(query, token) {
+        controller = new AbortController();
+        status.textContent = 'Searching…';
+        try {
+            const url = new URL(window.location.href);
+            url.searchParams.set('photo_search', query);
+            const response = await fetch(url, {signal: controller.signal, headers: {Accept: 'application/json'}});
+            if (!response.ok || response.redirected) throw new Error('Search failed');
+            const payload = await response.json();
+            if (!Array.isArray(payload.results)) throw new Error('Invalid results');
+            if (token !== generation) return;
+            results = payload.results.slice(0, 5);
+            list.replaceChildren();
+            results.forEach((photo, i) => {
+                const item = document.createElement('li');
+                item.id = `photo-search-result-${i}`;
+                item.setAttribute('role', 'option');
+                item.setAttribute('aria-selected', 'false');
+                const preview = document.createElement('span');
+                preview.className = 'photo-search-preview';
+                preview.textContent = '—';
+                if (photo.image_url) {
+                    const img = document.createElement('img');
+                    img.src = photo.image_url;
+                    img.alt = '';
+                    img.addEventListener('error', () => img.remove());
+                    preview.append(img);
+                }
+                const text = document.createElement('span');
+                const title = document.createElement('strong');
+                title.textContent = photo.title || `Photo ${photo.id}`;
+                const id = document.createElement('small');
+                id.textContent = `Photo ${photo.id}`;
+                text.append(title, id);
+                item.append(preview, text);
+                item.addEventListener('mousedown', event => event.preventDefault());
+                item.addEventListener('click', () => select(i));
+                list.append(item);
+            });
+            list.hidden = results.length === 0;
+            input.setAttribute('aria-expanded', String(results.length > 0));
+            status.textContent = results.length ? `${results.length} results` : 'No matching photos with recorded IOA activity.';
+        } catch (error) {
+            if (token !== generation || error.name === 'AbortError') return;
+            close();
+            status.textContent = 'Search unavailable. Try typing again.';
+        }
+    }
+    input.addEventListener('input', event => {
+        cancel();
+        close();
+        results = [];
+        root.selectedPhoto = null;
+        delete root.dataset.selectedPhotoId;
+        status.textContent = '';
+        const query = input.value.trim();
+        if (query && !event.isComposing) {
+            const token = generation;
+            timer = setTimeout(() => search(query, token), 250);
+        }
+    });
+    input.addEventListener('compositionend', () => input.dispatchEvent(new Event('input')));
+    input.addEventListener('keydown', event => {
+        if (event.isComposing) return;
+        if (event.key === 'Escape') {
+            cancel(); close(); status.textContent = '';
+        } else if (!list.hidden && ['ArrowDown', 'ArrowUp'].includes(event.key)) {
+            event.preventDefault();
+            highlight(active < 0 ? (event.key === 'ArrowDown' ? 0 : results.length - 1)
+                : (active + (event.key === 'ArrowDown' ? 1 : results.length - 1)) % results.length);
+        } else if (event.key === 'Enter') {
+            event.preventDefault();
+            if (!list.hidden) select(active < 0 ? 0 : active);
+        }
+    });
+    root.addEventListener('focusout', event => {
+        if (!root.contains(event.relatedTarget)) { cancel(); close(); }
+    });
+    document.addEventListener('pointerdown', event => {
+        if (!root.contains(event.target)) { cancel(); close(); }
+    });
+})();

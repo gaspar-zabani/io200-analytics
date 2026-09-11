@@ -362,6 +362,11 @@ try {
 
     $mysqli->set_charset('utf8mb4');
 
+    if (isset($_GET['photo_search'])) {
+        require __DIR__ . '/photo-search.php';
+        exit;
+    }
+
     function getSingleValue(mysqli $db, string $sql): int
     {
         $result = $db->query($sql);
@@ -2201,6 +2206,22 @@ try {
             color: inherit;
         }
 
+        .photo-search { grid-column: span 2; padding: 24px; min-width: 0; }
+        .photo-search label { display: block; font-size: 24px; font-weight: 600; }
+        .photo-search p { color: #74777c; font-size: 13px; }
+        .photo-search-field { position: relative; }
+        .photo-search input { box-sizing: border-box; width: 100%; min-width: 0; padding: 14px; border: 1px solid #c9cbd0; border-radius: 8px; font: inherit; font-size: 16px; }
+        .photo-search input:focus-visible { outline: 2px solid #555; outline-offset: 2px; }
+        .photo-search ul { position: absolute; z-index: 20; top: 100%; left: 0; right: 0; margin: 6px 0 0; padding: 4px; list-style: none; background: white; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 8px 24px #0002; max-height: min(360px, 55vh); overflow-y: auto; }
+        .photo-search li { display: flex; align-items: center; gap: 10px; padding: 8px; cursor: pointer; border-radius: 5px; }
+        .photo-search li:hover, .photo-search li[aria-selected="true"] { background: #edf0f3; }
+        .photo-search li > span:last-child { min-width: 0; }
+        .photo-search strong { display: block; overflow-wrap: anywhere; font-size: 14px; }
+        .photo-search small { display: block; color: #74777c; margin-top: 3px; }
+        .photo-search-preview { position: relative; display: grid; place-items: center; flex: 0 0 44px; height: 44px; background: #f2f2f2; border-radius: 4px; overflow: hidden; }
+        .photo-search-preview img { position: absolute; width: 100%; height: 100%; object-fit: cover; }
+        .photo-search-status { min-height: 18px; }
+        @media (max-width: 850px) { .photo-search { grid-column: 1 / -1; padding: 18px; } }
     </style>
 
 </head>
@@ -2261,57 +2282,17 @@ try {
 
     <div class="summary-grid">
 
-        <div class="kpi-grid">
-
-        <div class="dashboard-card kpi-card">
-
-            <span class="kpi-card__value">
-                <?= number_format($photoViews, 0, ',', ' ') ?>
-            </span>
-
-            <span class="kpi-card__label">
-                <?= ioa_t('metric_image_views') ?>
-            </span>
-
-        </div>
-
-        <div class="dashboard-card kpi-card">
-
-            <span class="kpi-card__value">
-                <?= number_format($visitSummary['visits'], 0, ',', ' ') ?>
-            </span>
-
-            <span class="kpi-card__label">
-                <?= ioa_t('metric_visits') ?>
-            </span>
-
-        </div>
-
-        <div class="dashboard-card kpi-card">
-
-            <span class="kpi-card__value">
-                <?= number_format($basketAdds, 0, ',', ' ') ?>
-            </span>
-
-            <span class="kpi-card__label">
-                <?= ioa_t('metric_added_to_basket') ?>
-            </span>
-
-        </div>
-
-        <div class="dashboard-card kpi-card">
-
-            <span class="kpi-card__value">
-                <?= number_format($downloads, 0, ',', ' ') ?>
-            </span>
-
-            <span class="kpi-card__label">
-                <?= ioa_t('metric_downloaded_images') ?>
-            </span>
-
-        </div>
-
-        </div>
+        <section class="dashboard-card photo-search" data-photo-search aria-labelledby="photo-search-label">
+            <label id="photo-search-label" for="photo-search-input">Find photo</label>
+            <p id="photo-search-help">Search photos with recorded IOA activity, across all periods.</p>
+            <div class="photo-search-field">
+                <input id="photo-search-input" type="search" placeholder="Photo ID or current title" maxlength="200"
+                    role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="photo-search-results"
+                    aria-describedby="photo-search-help" autocomplete="off">
+                <ul id="photo-search-results" role="listbox" aria-label="Matching photos" hidden></ul>
+            </div>
+            <p class="photo-search-status" role="status" aria-live="polite"></p>
+        </section>
 
         <section class="dashboard-card hero-card" aria-labelledby="dashboard-hero-title">
             <h2 class="hero-card__title" id="dashboard-hero-title">
@@ -2866,6 +2847,7 @@ try {
 
 </div>
 
+<script src="assets/photo-search.js" defer></script>
 <script>
     (function () {
         const component = document.querySelector('[data-photo-tabs]');

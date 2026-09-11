@@ -13,6 +13,8 @@ RELEASE_FILES = (
     "analytics.js",
     "collect.php",
     "dashboard.php",
+    "photo-search.php",
+    "assets/photo-search.js",
     "install.php",
     "uninstall.php",
     "localization.php",
