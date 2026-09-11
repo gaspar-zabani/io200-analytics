@@ -37,3 +37,46 @@ For example, version `1.1.0-beta.4` produces
 `dist/io200-analytics-1.1.0-beta.4.zip`; the folder inside remains `io200-analytics/`.
 Both `version.php` and `update-check.php` are required package files. Use the same
 version in the release title/tag. There is no publishing automation.
+
+## Testing the update notification with a fresh check
+
+The update checker stores only its manifest/check timestamp in one file:
+
+```text
+<PHP temporary directory>/ioa-update-<SHA-256>.json
+```
+
+The temporary directory is `sys_get_temp_dir()` in the dashboard's PHP runtime.
+The hash is SHA-256 of the absolute directory containing `update-check.php`,
+followed by `|`, followed by `IOA_UPDATE_MANIFEST_URL`. This isolates the cache
+by installation and manifest endpoint. Valid manifests are cached for six hours;
+failed checks are cached for 15 minutes. These durations do not need changing.
+
+To force a fresh check during styling tests:
+
+1. On the hosting server, identify the exact cache path. If SSH/terminal PHP uses
+   the same temporary directory and filesystem paths as web PHP, run this from
+   the deployed `io200-analytics` directory (POSIX shell):
+
+   ```sh
+   php -r 'require "update-check.php"; $directory = dirname((new ReflectionFunction("ioaAvailableUpdate"))->getFileName()); echo sys_get_temp_dir() . DIRECTORY_SEPARATOR . "ioa-update-" . hash("sha256", $directory . "|" . IOA_UPDATE_MANIFEST_URL) . ".json", PHP_EOL;'
+   ```
+
+   This prints the path only; it does not fetch a manifest or modify state.
+   If web PHP uses a private temporary directory or different configuration,
+   use the hosting panel's PHP configuration/support to confirm its
+   `sys_get_temp_dir()` and the deployed absolute directory. A local workstation's
+   path/hash does not identify the server's cache.
+2. Wait for any dashboard requests to finish, then delete **only that exact
+   file** using the hosting file manager or SSH. Do not delete the temporary
+   directory or use a wildcard matching other installations' caches. If the
+   directory is inaccessible, ask hosting support to delete that exact file.
+3. Reload the dashboard while signed in as an IO200 Admin. The next update check
+   recreates the file and attempts to fetch the manifest. The notice appears
+   only if the response passes existing validation and its version is newer
+   than `version.php`. Repeat the deletion before another fresh-check test.
+
+Deleting this file does not change analytics data, sessions, installer state, or
+other caches. A browser hard refresh alone does not clear this server-side file.
+No temporary bypass code or debug UI is needed, and nothing from this procedure
+needs removing before committing.

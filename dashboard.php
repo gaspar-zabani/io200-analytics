@@ -1755,6 +1755,28 @@ try {
             color: #6e7177;
         }
 
+        .update-notice {
+            padding: 5px 10px;
+            border: 1px solid #dedfe2;
+            border-radius: 999px;
+            background: #f8f9fa;
+            color: #6e7177;
+            font-size: 12px;
+            line-height: 1.4;
+            text-decoration: none;
+        }
+
+        .update-notice--desktop {
+            flex-shrink: 0;
+            align-self: flex-end;
+            padding: 8px 12px;
+            white-space: nowrap;
+        }
+
+        .update-notice--mobile {
+            display: none;
+        }
+
         .filters {
             display: flex;
             flex-wrap: wrap;
@@ -2492,6 +2514,18 @@ try {
                 flex-direction: column;
             }
 
+            .update-notice--desktop {
+                display: none;
+            }
+
+            .update-notice--mobile {
+                display: block;
+                width: 100%;
+                margin-bottom: 16px;
+                border-radius: 6px;
+                text-align: center;
+            }
+
             .photo-tabs__list {
                 gap: 6px;
             }
@@ -2637,6 +2671,19 @@ try {
 
 <div class="dashboard">
 
+    <?php
+    // Optional until the customer ZIP allowlist includes the notification files.
+    $installedVersion = is_file(__DIR__ . '/version.php') ? (require __DIR__ . '/version.php') : null;
+    $availableUpdate = null;
+    if (is_string($installedVersion) && is_file(__DIR__ . '/update-check.php')) {
+        require_once __DIR__ . '/update-check.php';
+        $availableUpdate = ioaAvailableUpdate($installedVersion);
+    }
+    ?>
+    <?php if ($availableUpdate !== null): ?>
+        <a class="update-notice update-notice--mobile" href="<?= h($availableUpdate['download_url']) ?>"><?= ioa_t('update_available_mobile') ?></a>
+    <?php endif; ?>
+
     <div class="topbar">
 
         <div>
@@ -2648,6 +2695,10 @@ try {
             </p>
 
         </div>
+
+        <?php if ($availableUpdate !== null): ?>
+            <a class="update-notice update-notice--desktop" href="<?= h($availableUpdate['download_url']) ?>"><?= ioa_t('update_available') ?></a>
+        <?php endif; ?>
 
         <div class="filters">
 
@@ -3265,20 +3316,8 @@ try {
 
     </section>
 
-    <?php
-    // Optional until the customer ZIP allowlist includes the notification files.
-    $installedVersion = is_file(__DIR__ . '/version.php') ? (require __DIR__ . '/version.php') : null;
-    $availableUpdate = null;
-    if (is_string($installedVersion) && is_file(__DIR__ . '/update-check.php')) {
-        require_once __DIR__ . '/update-check.php';
-        $availableUpdate = ioaAvailableUpdate($installedVersion);
-    }
-    ?>
     <footer class="dashboard-footer">
         <?= ioa_t('app_name') ?><?php if (is_string($installedVersion)): ?> · v<?= h($installedVersion) ?><?php endif; ?>
-        <?php if ($availableUpdate !== null): ?>
-            · <a href="<?= h($availableUpdate['download_url']) ?>"><?= ioa_t('update_available') ?></a>
-        <?php endif; ?>
         ·
         <a href="mailto:ioa@jesperalvermark.se">
             <?= ioa_t('feedback') ?>: ioa@jesperalvermark.se
