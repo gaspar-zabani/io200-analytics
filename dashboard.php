@@ -724,13 +724,7 @@ try {
     }
     unset($visit);
 
-    $latestVisitImage = null;
-    foreach ($recentVisits[0]['viewed_photos'] ?? [] as $photo) {
-        if (isset($visitImages[$photo['photo_id']])) {
-            $latestVisitImage = $visitImages[$photo['photo_id']];
-            break;
-        }
-    }
+    $latestVisitImage = $recentVisits[0]['hero_image'] ?? null;
 
     // --------------------------------------------------
     // Latest viewed photo
@@ -2862,6 +2856,8 @@ try {
 
     <footer class="dashboard-footer">
         <?= ioa_t('app_name') ?><?php if (is_string($installedVersion)): ?> · v<?= h($installedVersion) ?><?php endif; ?>
+        ·
+        <a href="https://jesperalvermark.se/ioa">Website</a>
         ·
         <a href="mailto:ioa@jesperalvermark.se">
             <?= ioa_t('feedback') ?>: ioa@jesperalvermark.se
