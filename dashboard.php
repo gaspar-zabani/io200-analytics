@@ -9,7 +9,7 @@ header('Pragma: no-cache');
 
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
-const VISIT_INACTIVITY_SECONDS = 1800;
+require_once __DIR__ . '/visits.php';
 
 // --------------------------------------------------
 // IO200 admin authentication
@@ -362,6 +362,11 @@ try {
 
     $mysqli->set_charset('utf8mb4');
 
+    if (isset($_GET['photo_inspector'])) {
+        require __DIR__ . '/photo-inspector.php';
+        exit;
+    }
+
     if (isset($_GET['photo_search'])) {
         require __DIR__ . '/photo-search.php';
         exit;
@@ -516,102 +521,66 @@ try {
             ORDER BY session_id, created_at ASC, id ASC
         ");
 
-        $currentVisit = null;
-        $currentSessionId = null;
-        $previousTimestamp = null;
+        $eventRows = (static function () use ($result) {
+            while ($row = $result->fetch_assoc()) yield $row;
+        })();
+        foreach (ioaSegmentVisits($eventRows) as $episode) {
+            $currentVisit = $episode;
+            $currentVisit['events'] = [];
+            $currentVisit += ['photo_views' => 0, 'basket_adds' => 0,
+                'basket_removes' => 0, 'downloads' => 0, 'qualifies_for_period' => false];
+            foreach ($episode['events'] as $row) {
+                $event = [
+                    'id' => (int)$row['id'],
+                    'event_type' => $row['event_type'],
+                    'photo_id' => $row['photo_id'],
+                    'image_url' => $row['image_url'],
+                    'image_urls' => [],
+                    'page_path' => $row['page_path'],
+                    'page_context' => readablePagePath($row['page_path'] ?? null),
+                    'created_at' => $row['created_at'],
+                    'formatted_created_at' => formatActivityTimestamp($row['created_at'] ?? null),
+                    'photo_ids' => [],
+                    'photo_count' => 0
+                ];
 
-        $finishVisit = static function () use (&$currentVisit, &$recentVisits) {
-            if ($currentVisit !== null && $currentVisit['qualifies_for_period']) {
+                if ($row['event_type'] === 'batch_download' && $row['batch_data'] !== null) {
+                    $batch = json_decode($row['batch_data'], true);
+
+                    if (
+                        is_array($batch) &&
+                        isset($batch['photo_ids']) &&
+                        is_array($batch['photo_ids'])
+                    ) {
+                        $photoIds = array_values($batch['photo_ids']);
+                        $photoCount = count($photoIds);
+
+                        $currentVisit['downloads'] += $photoCount;
+                        $event['photo_ids'] = $photoIds;
+                        $event['photo_count'] = $photoCount;
+                        $event['image_urls'] = is_array($batch['image_urls'] ?? null)
+                            ? array_values($batch['image_urls']) : [];
+                    }
+                } elseif ($row['event_type'] === 'photo_view') {
+                    $currentVisit['photo_views']++;
+                } elseif ($row['event_type'] === 'photo_download') {
+                    $currentVisit['downloads']++;
+                } elseif ($row['event_type'] === 'basket_add') {
+                    $currentVisit['basket_adds']++;
+                } elseif ($row['event_type'] === 'basket_remove') {
+                    $currentVisit['basket_removes']++;
+                }
+
+                $currentVisit['qualifies_for_period'] =
+                    $currentVisit['qualifies_for_period'] ||
+                    isset($qualifyingEventIds[(string)$row['id']]);
+                $currentVisit['events'][] = $event;
+            }
+            if ($currentVisit['qualifies_for_period']) {
                 unset($currentVisit['qualifies_for_period']);
                 $recentVisits[] = $currentVisit;
             }
-
-            $currentVisit = null;
-        };
-
-        while ($row = $result->fetch_assoc()) {
-            $sessionId = (string)$row['session_id'];
-            $eventTimestamp = is_string($row['created_at'])
-                ? strtotime($row['created_at'])
-                : false;
-            $startsNewVisit = $currentVisit === null ||
-                $sessionId !== $currentSessionId ||
-                $eventTimestamp === false ||
-                $previousTimestamp === null ||
-                ($eventTimestamp - $previousTimestamp) > VISIT_INACTIVITY_SECONDS;
-
-            if ($startsNewVisit) {
-                $finishVisit();
-                $currentSessionId = $sessionId;
-                $currentVisit = [
-                    'session_id' => $sessionId,
-                    // Anchor the Visit ID to its original first event, not its display order.
-                    'visit_id' => (int)$row['id'],
-                    'last_event_id' => (int)$row['id'],
-                    'first_activity' => $row['created_at'],
-                    'latest_activity' => $row['created_at'],
-                    'photo_views' => 0,
-                    'basket_adds' => 0,
-                    'basket_removes' => 0,
-                    'downloads' => 0,
-                    'events' => [],
-                    'qualifies_for_period' => false
-                ];
-            }
-
-            $event = [
-                'id' => (int)$row['id'],
-                'event_type' => $row['event_type'],
-                'photo_id' => $row['photo_id'],
-                'image_url' => $row['image_url'],
-                'image_urls' => [],
-                'page_path' => $row['page_path'],
-                'page_context' => readablePagePath($row['page_path'] ?? null),
-                'created_at' => $row['created_at'],
-                'formatted_created_at' => formatActivityTimestamp($row['created_at'] ?? null),
-                'photo_ids' => [],
-                'photo_count' => 0
-            ];
-
-            if ($row['event_type'] === 'batch_download' && $row['batch_data'] !== null) {
-                $batch = json_decode($row['batch_data'], true);
-
-                if (
-                    is_array($batch) &&
-                    isset($batch['photo_ids']) &&
-                    is_array($batch['photo_ids'])
-                ) {
-                    $photoIds = array_values($batch['photo_ids']);
-                    $photoCount = count($photoIds);
-
-                    $currentVisit['downloads'] += $photoCount;
-                    $event['photo_ids'] = $photoIds;
-                    $event['photo_count'] = $photoCount;
-                    $event['image_urls'] = is_array($batch['image_urls'] ?? null)
-                        ? array_values($batch['image_urls']) : [];
-                }
-            } elseif ($row['event_type'] === 'photo_view') {
-                $currentVisit['photo_views']++;
-            } elseif ($row['event_type'] === 'photo_download') {
-                $currentVisit['downloads']++;
-            } elseif ($row['event_type'] === 'basket_add') {
-                $currentVisit['basket_adds']++;
-            } elseif ($row['event_type'] === 'basket_remove') {
-                $currentVisit['basket_removes']++;
-            }
-
-            $currentVisit['last_event_id'] = (int)$row['id'];
-            $currentVisit['latest_activity'] = $row['created_at'];
-            $currentVisit['qualifies_for_period'] =
-                $currentVisit['qualifies_for_period'] ||
-                isset($qualifyingEventIds[(string)$row['id']]);
-            $currentVisit['events'][] = $event;
-            $previousTimestamp = $eventTimestamp !== false
-                ? $eventTimestamp
-                : null;
         }
-
-        $finishVisit();
     }
 
     foreach ($recentVisits as &$visit) {
@@ -2207,7 +2176,7 @@ try {
         }
 
         .photo-search { grid-column: span 2; padding: 24px; min-width: 0; }
-        .photo-search label { display: block; font-size: 24px; font-weight: 600; }
+        .photo-search label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; }
         .photo-search p { color: #74777c; font-size: 13px; }
         .photo-search-field { position: relative; }
         .photo-search input { box-sizing: border-box; width: 100%; min-width: 0; padding: 14px; border: 1px solid #c9cbd0; border-radius: 8px; font: inherit; font-size: 16px; }
@@ -2220,13 +2189,61 @@ try {
         .photo-search small { display: block; color: #74777c; margin-top: 3px; }
         .photo-search-preview { position: relative; display: grid; place-items: center; flex: 0 0 44px; height: 44px; background: #f2f2f2; border-radius: 4px; overflow: hidden; }
         .photo-search-preview img { position: absolute; width: 100%; height: 100%; object-fit: cover; }
-        .photo-search-status { min-height: 18px; }
+        .photo-search-status:empty { margin: 0; }
+        .photo-inspector--inline { padding-top: 16px; }
+        .photo-inspector strong { display: block; overflow-wrap: anywhere; font-size: 14px; }
+        .photo-inspector small { display: block; color: #74777c; margin-top: 3px; }
+        .photo-inspector-preview { position: relative; display: grid; place-items: center; flex: 0 0 72px; height: 72px; background: #f2f2f2; border-radius: 4px; overflow: hidden; }
+        .photo-inspector-preview img { position: absolute; width: 100%; height: 100%; object-fit: cover; }
+        .photo-inspector-identity { display: flex; align-items: center; gap: 12px; }
+        .photo-inspector-identity > div { min-width: 0; flex: 1; }
+        .photo-inspector button { border: 0; background: transparent; color: #666; cursor: pointer; padding: 8px; font: inherit; font-size: 13px; }
+        .photo-inspector dl { display: flex; flex-wrap: wrap; gap: 12px 24px; margin: 16px 0; }
+        .photo-inspector dt { font-size: 12px; color: #74777c; }
+        .photo-inspector dd { margin: 4px 0 0; font-size: 14px; }
+        .photo-inspector h3 { font-size: 13px; margin: 16px 0 6px; }
+        .photo-inspector p { margin: 6px 0; overflow-wrap: anywhere; color: #74777c; font-size: 13px; }
+        .photo-inspector .photo-inspector-context { color: #333; font-size: 13px; }
+        .photo-inspector-visit { padding-bottom: 16px; margin-bottom: 16px; border-bottom: 1px solid #e7e7e7; }
+        .visit-photo-trigger { display: inline-flex; padding: 0; border: 0; border-radius: 4px; background: transparent; cursor: pointer; }
+        .visit-photo-trigger:focus-visible { outline: 2px solid #555; outline-offset: 3px; }
+        .visit-photo-gallery { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+        .visit-photo-gallery .visit-photo-trigger { width: 76px; height: 76px; max-width: 100%; display: grid; place-items: center; overflow: hidden; background: #f0f1f2; color: #74777c; }
+        .visit-photo-gallery img { display: block; width: 100%; height: 100%; object-fit: cover; }
+        .visit-gallery-more { flex: 0 0 76px; height: 76px; max-width: 100%; padding: 0; border: 1px solid #e6e7e9; border-radius: 4px; background: #fafafa; color: #666; font: inherit; font-size: 15px; cursor: pointer; }
+        .visit-gallery-more:hover { text-decoration: underline; }
+        .visit-gallery-more:focus-visible { outline: 2px solid #555; outline-offset: 3px; }
+        .visit-photo-popover { position: fixed; z-index: 1000; box-sizing: border-box; width: 320px; padding: 0; border: 1px solid #e1e1e1; border-radius: 12px; background: white; color: #333; box-shadow: 0 6px 24px #0002; overflow: visible; }
+        .visit-photo-popover-surface { position: relative; padding: 16px; border-radius: inherit; background: white; max-height: calc(var(--popover-max-height, 80vh) - 2px); box-sizing: border-box; overflow: auto; }
+        .visit-photo-popover::before { content: ''; position: absolute; width: 10px; height: 10px; background: white; border: solid #e1e1e1; border-width: 0; transform: rotate(45deg); pointer-events: none; }
+        .visit-photo-popover[data-placement="above"]::before { bottom: -6px; left: calc(var(--pointer-offset) - 5px); border-width: 0 1px 1px 0; }
+        .visit-photo-popover[data-placement="below"]::before { top: -6px; left: calc(var(--pointer-offset) - 5px); border-width: 1px 0 0 1px; }
+        .visit-photo-popover[data-placement="left"]::before { right: -6px; top: calc(var(--pointer-offset) - 5px); border-width: 1px 1px 0 0; }
+        .visit-photo-popover[data-placement="right"]::before { left: -6px; top: calc(var(--pointer-offset) - 5px); border-width: 0 0 1px 1px; }
+        .visit-photo-popover:not([data-placement])::before { display: none; }
+        .visit-popover-metrics { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; margin: 10px 0; font-size: 13px; }
+        .visit-popover-metrics svg { width: 16px; height: 16px; flex: 0 0 16px; }
+        .visit-photo-popover .visit-popover-context { color: #444; margin-top: 10px; }
+        .visit-photo-popover .visit-popover-time { font-variant-numeric: tabular-nums; }
+        .visit-photo-popover:focus-visible { outline: 2px solid #777; outline-offset: 2px; }
+        .visit-photo-popover .photo-inspector-identity { padding-right: 24px; }
+        .visit-photo-popover .photo-inspector-preview { flex-basis: 44px; height: 44px; }
+        .visit-photo-popover-close, .visit-photo-popover-full { border: 0; background: transparent; color: #555; cursor: pointer; font: inherit; padding: 6px; }
+        .visit-photo-popover-close { position: absolute; right: 8px; top: 8px; font-size: 22px; line-height: 1; }
+        .visit-photo-popover-full { display: block; margin-top: 12px; font-size: 13px; text-decoration: none; }
+        .photo-inspector-modal { box-sizing: border-box; width: min(560px, calc(100% - 32px)); max-height: calc(100dvh - 32px); margin: auto; padding: 24px; border: 0; border-radius: 12px; color: #333; background: white; box-shadow: 0 16px 64px #0003; overflow-y: auto; }
+        .photo-inspector-modal::backdrop { background: #0007; }
+        .photo-inspector-modal header { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 16px; }
+        .photo-inspector-modal h2 { margin: 0; font-size: 18px; }
+        .photo-inspector-modal-close { border: 0; background: transparent; color: #666; cursor: pointer; font: inherit; padding: 8px; }
+        .photo-inspector-modal-close { font-size: 24px; line-height: 1; }
+        .photo-inspector-modal-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
         @media (max-width: 850px) { .photo-search { grid-column: 1 / -1; padding: 18px; } }
     </style>
 
 </head>
 
-<body>
+<body data-inspector-period="<?= h($allowedPeriods[$period]) ?>" data-inspector-today="<?= h((new DateTimeImmutable('today'))->format('Y-m-d')) ?>">
 
 <div class="dashboard">
 
@@ -2284,14 +2301,14 @@ try {
 
         <section class="dashboard-card photo-search" data-photo-search aria-labelledby="photo-search-label">
             <label id="photo-search-label" for="photo-search-input">Find photo</label>
-            <p id="photo-search-help">Search photos with recorded IOA activity, across all periods.</p>
             <div class="photo-search-field">
                 <input id="photo-search-input" type="search" placeholder="Photo ID or current title" maxlength="200"
                     role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="photo-search-results"
-                    aria-describedby="photo-search-help" autocomplete="off">
+                    autocomplete="off">
                 <ul id="photo-search-results" role="listbox" aria-label="Matching photos" hidden></ul>
             </div>
             <p class="photo-search-status" role="status" aria-live="polite"></p>
+            <div class="photo-inspector photo-inspector--inline" data-photo-inspector hidden></div>
         </section>
 
         <section class="dashboard-card hero-card" aria-labelledby="dashboard-hero-title">
@@ -2783,14 +2800,20 @@ try {
                                                 $photoIds = array_values($item['photo_ids']);
                                                 $photoCount = count($photoIds);
                                                 $displayCount = $item['type'] === 'photo_view' ? $photoCount : $item['actions'];
-                                                $previewIds = [];
-                                                foreach ($photoIds as $photoId) {
-                                                    if (!isset($visitImages[$photoId])) continue;
-                                                    $previewIds[] = $photoId;
-                                                    if (count($previewIds) === 5) break;
+                                                // Presentation only: retain first occurrence order, including photos without images.
+                                                $galleryPhotos = [];
+                                                foreach ($photoIds as $rawPhotoId) {
+                                                    $galleryPhotoId = (int)$rawPhotoId;
+                                                    if ($galleryPhotoId <= 0 || isset($galleryPhotos[$galleryPhotoId])) continue;
+                                                    $galleryPhotos[$galleryPhotoId] = [
+                                                        'id' => (string)$galleryPhotoId,
+                                                        'title' => $photoTitles[$galleryPhotoId] ?? (ioa_translate('photo') . ' ' . $galleryPhotoId),
+                                                        'image_url' => $visitImages[$galleryPhotoId] ?? null
+                                                    ];
                                                 }
-                                                $hasImages = count($previewIds) > 0;
-                                                if (!$hasImages) $previewIds = array_slice($photoIds, 0, 5);
+                                                $galleryPhotos = array_values($galleryPhotos);
+                                                $initialPhotos = array_slice($galleryPhotos, 0, 50);
+                                                $remainingPhotos = array_slice($galleryPhotos, 50);
                                                 ?>
                                                 <div class="visit-activity-summary__item">
                                                     <div class="visit-timeline__action">
@@ -2803,19 +2826,26 @@ try {
                                                             &middot; <?= h(sprintf(ioa_translate($photoCount === 1 ? 'one_selected_photo' : 'selected_photos_count'), $photoCount)) ?>
                                                         <?php endif; ?>
                                                     </div>
-                                                    <?php if ($previewIds): ?>
-                                                        <div class="selection-preview">
-                                                            <?php foreach ($previewIds as $photoId): ?>
-                                                                <?php $photoLabel = $photoTitles[$photoId] ?? (ioa_translate('photo') . ' ' . $photoId); ?>
-                                                                <?php if ($hasImages): ?>
-                                                                    <img class="visit-highlight-image" src="<?= h($visitImages[$photoId]) ?>" alt="<?= h($photoLabel) ?>" title="<?= h($photoLabel . ' (' . ioa_translate('photo') . ' ' . $photoId . ')') ?>" loading="lazy">
-                                                                <?php else: ?>
-                                                                    <span class="photo-item__meta" title="<?= h(ioa_translate('photo') . ' ' . $photoId) ?>"><?= h($photoLabel) ?></span>
-                                                                <?php endif; ?>
-                                                            <?php endforeach; ?>
-                                                            <?php if ($photoCount > count($previewIds)): ?>
-                                                                <span class="photo-item__meta"><?= h(sprintf(ioa_translate('more_photos_count'), $photoCount - count($previewIds))) ?></span>
+                                                    <?php if ($initialPhotos): ?>
+                                                        <div data-visit-gallery data-visit-id="<?= (int)$visit['visit_id'] ?>">
+                                                            <div class="visit-photo-gallery" data-gallery-grid>
+                                                                <?php foreach ($initialPhotos as $galleryPhoto): ?>
+                                                                    <button type="button" class="visit-photo-trigger" data-visit-photo data-photo-id="<?= h($galleryPhoto['id']) ?>" data-visit-id="<?= (int)$visit['visit_id'] ?>" aria-haspopup="dialog" aria-expanded="false" aria-controls="visit-photo-popover" aria-label="<?= h('Inspect ' . $galleryPhoto['title'] . ' in this Visit') ?>" title="<?= h($galleryPhoto['title']) ?>">
+                                                                        <?php if ($galleryPhoto['image_url'] !== null): ?>
+                                                                            <img src="<?= h($galleryPhoto['image_url']) ?>" alt="" loading="lazy">
+                                                                        <?php else: ?>
+                                                                            <span aria-hidden="true">&ndash;</span>
+                                                                        <?php endif; ?>
+                                                                    </button>
+                                                                <?php endforeach; ?>
+                                                            <?php if ($remainingPhotos): ?>
+                                                                <button type="button" class="visit-gallery-more" data-gallery-more aria-label="Show <?= min(50, count($remainingPhotos)) ?> more photos">+<?= min(50, count($remainingPhotos)) ?></button>
                                                             <?php endif; ?>
+                                                            </div>
+                                                            <?php if ($remainingPhotos): ?>
+                                                                <script type="application/json" data-gallery-remaining><?= json_encode($remainingPhotos, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_INVALID_UTF8_SUBSTITUTE) ?></script>
+                                                            <?php endif; ?>
+                                                            <span class="visit-summary__accessible" data-gallery-status role="status" aria-live="polite"></span>
                                                         </div>
                                                     <?php endif; ?>
                                                 </div>
@@ -2847,7 +2877,32 @@ try {
 
 </div>
 
+<dialog class="photo-inspector-modal" data-photo-inspector-modal aria-labelledby="photo-inspector-modal-title">
+    <header>
+        <h2 id="photo-inspector-modal-title">Photo inspector</h2>
+        <button type="button" class="photo-inspector-modal-close" data-inspector-close aria-label="Close Photo inspector" autofocus>&times;</button>
+    </header>
+    <div class="photo-inspector" data-modal-inspector hidden></div>
+    <p class="photo-inspector-modal-status" role="status" aria-live="polite"></p>
+</dialog>
+<template data-visit-popover-icons>
+<svg data-icon="views" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+<svg data-icon="downloads" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 3v12m-4-4 4 4 4-4M5 17v4h14v-4"/></svg>
+<svg data-icon="basket" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m8 3-4 6m12-6 4 6M2 9h20l-3 12H5L2 9Zm7 4v4m6-4v4"/></svg>
+</template>
+<div id="visit-photo-popover" class="visit-photo-popover" data-visit-photo-popover role="dialog" aria-label="Photo activity in this Visit" tabindex="-1" hidden>
+    <div class="visit-photo-popover-surface">
+        <button type="button" class="visit-photo-popover-close" data-popover-close aria-label="Close photo activity">&times;</button>
+        <div class="photo-inspector" data-popover-content></div>
+        <button type="button" class="visit-photo-popover-full" data-popover-full>Full inspector <span aria-hidden="true">→</span></button>
+        <span class="photo-inspector-modal-status" data-popover-status role="status" aria-live="polite"></span>
+    </div>
+</div>
+<script src="assets/photo-inspector.js" defer></script>
 <script src="assets/photo-search.js" defer></script>
+<script src="assets/photo-inspector-modal.js" defer></script>
+<script src="assets/visit-photo-popover.js" defer></script>
+<script src="assets/visit-photo-gallery.js" defer></script>
 <script>
     (function () {
         const component = document.querySelector('[data-photo-tabs]');

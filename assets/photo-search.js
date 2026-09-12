@@ -4,7 +4,55 @@
     const input = root.querySelector('input');
     const list = root.querySelector('[role="listbox"]');
     const status = root.querySelector('[role="status"]');
+    const inspector = root.querySelector('[data-photo-inspector]');
     let timer, controller, generation = 0, active = -1, results = [];
+    const remember = id => {
+        const update = url => {
+            if (id) url.searchParams.set('selected_photo', id);
+            else url.searchParams.delete('selected_photo');
+            return url;
+        };
+        history.replaceState(null, '', update(new URL(location.href)));
+        document.querySelectorAll('.filters a.filter').forEach(link => {
+            link.href = update(new URL(link.href)).href;
+        });
+    };
+    const clearInspector = () => {
+        inspectorInstance.clear();
+        root.selectedPhoto = null;
+        delete root.dataset.selectedPhotoId;
+        remember(null);
+    };
+    const clearSelection = () => {
+        cancel();
+        close();
+        clearInspector();
+        input.value = '';
+        status.textContent = '';
+        input.focus();
+    };
+    const clearButton = () => {
+        const button = document.createElement('button');
+        button.textContent = 'Clear';
+        button.type = 'button';
+        button.setAttribute('aria-label', 'Clear selected photo');
+        button.addEventListener('click', clearSelection);
+        return button;
+    };
+    const inspectorInstance = window.IOAPhotoInspector.create(inspector, {
+        action: clearButton,
+        onLoad(photo) {
+            root.selectedPhoto = photo;
+            input.value = photo.title || `Photo ${photo.id}`;
+            status.textContent = '';
+        },
+        onError() { status.textContent = 'Photo details unavailable.'; }
+    });
+    function loadInspector(id) {
+        root.dataset.selectedPhotoId = id;
+        remember(id);
+        inspectorInstance.load(id);
+    }
     const close = () => {
         list.hidden = true;
         input.setAttribute('aria-expanded', 'false');
@@ -25,6 +73,7 @@
         input.value = photo.title || `Photo ${photo.id}`;
         status.textContent = `Selected: ${input.value} · Photo ${photo.id}`;
         close();
+        loadInspector(photo.id);
     };
     const highlight = index => {
         active = index;
@@ -37,6 +86,7 @@
         status.textContent = 'Searching…';
         try {
             const url = new URL(window.location.href);
+            url.searchParams.delete('photo_inspector');
             url.searchParams.set('photo_search', query);
             const response = await fetch(url, {signal: controller.signal, headers: {Accept: 'application/json'}});
             if (!response.ok || response.redirected) throw new Error('Search failed');
@@ -84,8 +134,7 @@
         cancel();
         close();
         results = [];
-        root.selectedPhoto = null;
-        delete root.dataset.selectedPhotoId;
+        clearInspector();
         status.textContent = '';
         const query = input.value.trim();
         if (query && !event.isComposing) {
@@ -113,4 +162,6 @@
     document.addEventListener('pointerdown', event => {
         if (!root.contains(event.target)) { cancel(); close(); }
     });
+    const selected = new URL(location.href).searchParams.get('selected_photo');
+    if (selected && /^[1-9]\d*$/.test(selected)) loadInspector(selected);
 })();
