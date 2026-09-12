@@ -6,6 +6,22 @@
     const status = root.querySelector('[role="status"]');
     const inspector = root.querySelector('[data-photo-inspector]');
     let timer, controller, generation = 0, active = -1, results = [];
+    let prepareQuery = false;
+    const clear = root.querySelector('[data-photo-search-clear]');
+    const syncClear = () => { clear.hidden = !input.value && !root.dataset.selectedPhotoId; };
+    const selectQuery = () => {
+        if (!prepareQuery || !root.dataset.selectedPhotoId) return;
+        input.select();
+        prepareQuery = false;
+    };
+    let pointerSelect = false;
+    input.addEventListener('pointerdown', () => { pointerSelect = prepareQuery && !!root.dataset.selectedPhotoId; });
+    input.addEventListener('focus', selectQuery);
+    // A subsequent click also handles results selected while the field retained focus.
+    input.addEventListener('click', () => {
+        if (pointerSelect) { input.select(); pointerSelect = false; prepareQuery = false; }
+        else selectQuery();
+    });
     const remember = id => {
         const update = url => {
             if (id) url.searchParams.set('selected_photo', id);
@@ -22,35 +38,33 @@
         root.selectedPhoto = null;
         delete root.dataset.selectedPhotoId;
         remember(null);
+        prepareQuery = false;
+        syncClear();
     };
     const clearSelection = () => {
         cancel();
         close();
         clearInspector();
         input.value = '';
+        syncClear();
         status.textContent = '';
         input.focus();
     };
-    const clearButton = () => {
-        const button = document.createElement('button');
-        button.textContent = 'Clear';
-        button.type = 'button';
-        button.setAttribute('aria-label', 'Clear selected photo');
-        button.addEventListener('click', clearSelection);
-        return button;
-    };
+    clear.addEventListener('click', clearSelection);
     const inspectorInstance = window.IOAPhotoInspector.create(inspector, {
-        action: clearButton,
         onLoad(photo) {
             root.selectedPhoto = photo;
             input.value = photo.title || `Photo ${photo.id}`;
             status.textContent = '';
+            syncClear();
         },
         onError() { status.textContent = 'Photo details unavailable.'; }
     });
     function loadInspector(id) {
         root.dataset.selectedPhotoId = id;
         remember(id);
+        prepareQuery = true;
+        syncClear();
         inspectorInstance.load(id);
     }
     const close = () => {

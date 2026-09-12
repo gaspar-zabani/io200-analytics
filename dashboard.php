@@ -2205,6 +2205,50 @@ try {
         .photo-inspector p { margin: 6px 0; overflow-wrap: anywhere; color: #74777c; font-size: 13px; }
         .photo-inspector .photo-inspector-context { color: #333; font-size: 13px; }
         .photo-inspector-visit { padding-bottom: 16px; margin-bottom: 16px; border-bottom: 1px solid #e7e7e7; }
+        .photo-inspector--detail .photo-inspector-identity { gap: 13px; margin-bottom: 16px; }
+        .photo-inspector--detail .photo-inspector-identity strong { font-size: 18px; font-weight: 600; line-height: 1.35; }
+        .photo-inspector--detail .photo-inspector-identity small { font-size: 12px; color: #85888d; }
+        .photo-inspector--detail .photo-inspector-preview { flex-basis: 80px; height: 56px; border-radius: 6px; }
+        .photo-inspector-modal .photo-inspector-identity { padding-right: 28px; }
+        .photo-inspector--detail .photo-inspector-metrics { gap: 12px 24px; margin: 12px 0; }
+        .photo-inspector--detail .photo-inspector-metrics[hidden] { display: none; }
+        .photo-inspector-metric { display: flex; align-items: flex-start; gap: 6px; }
+        .photo-inspector--detail .photo-inspector-metrics dt { padding-top: 6px; }
+        .photo-inspector--detail .photo-inspector-metrics dd { display: grid; gap: 3px; margin: 0; }
+        .photo-inspector--detail .photo-inspector-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 8px; font-size: 12px; color: #85888d; }
+        .photo-inspector-period { display: inline-block; padding: 2px 7px; border-radius: 10px; background: #f0f1f2; color: #73777d; white-space: nowrap; }
+        .photo-inspector--detail .photo-inspector-context { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
+        .photo-inspector--detail .photo-inspector-context strong { font-size: 13px; font-weight: 500; }
+        .photo-inspector--detail .photo-inspector-context small { margin: 0; font-size: 12px; }
+        .photo-inspector--detail button:focus-visible { outline: 2px solid #555; outline-offset: 2px; }
+        .photo-search { container-type: inline-size; }
+        .photo-search input { padding-right: 78px; }
+        .photo-search input::-webkit-search-cancel-button { -webkit-appearance: none; }
+        .photo-search-clear { position: absolute; right: 8px; top: 8px; padding: 7px 8px; border: 1px solid #e4e5e7; border-radius: 5px; background: white; color: #666; font: inherit; font-size: 13px; cursor: pointer; }
+        .photo-search-clear:focus-visible { outline: 2px solid #555; outline-offset: 2px; }
+        .photo-inspector-scopes, .photo-inspector-scope { display: grid; gap: 16px; min-width: 0; }
+        .photo-inspector-primary, .photo-inspector-details { min-width: 0; }
+        .photo-inspector--detail .photo-inspector-scope-title { margin: 0; }
+        .photo-inspector--detail .photo-inspector-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+        .photo-inspector-metric { min-width: 0; }
+        .photo-inspector-metric dd { min-width: 0; overflow-wrap: anywhere; }
+        .photo-inspector-details > h3:first-child { margin-top: 0; }
+        .photo-inspector-locations { display: grid; gap: 8px 10px; align-items: start; font-size: 13px; }
+        .photo-inspector-location-name { overflow-wrap: anywhere; }
+        .photo-inspector-location-value { display: grid; justify-items: end; min-width: 0; text-align: right; font-variant-numeric: tabular-nums; }
+        .photo-inspector-location-value small { font-size: 11px; overflow-wrap: anywhere; }
+        .photo-inspector-location-value .visit-summary__metric { white-space: normal; }
+        .photo-inspector-membership { display: flex; flex-wrap: wrap; gap: 5px; }
+        .photo-inspector-album { padding: 3px 7px; border-radius: 5px; background: #f0f1f2; color: #73777d; font-size: 12px; overflow-wrap: anywhere; }
+        @container (min-width: 600px) {
+            .photo-inspector--inline .photo-inspector-scope { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 24px; }
+        }
+        @media (min-width: 850px) {
+            .photo-inspector-modal:has(.photo-inspector-scopes--visit) { width: min(960px, calc(100% - 64px)); }
+            .photo-inspector-scopes--visit { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 32px; }
+            .photo-inspector-scopes--visit .photo-inspector-scope { grid-row: span 3; grid-template-rows: subgrid; }
+            .photo-inspector-scopes--visit .photo-inspector-primary { display: grid; grid-template-rows: auto 1fr auto; }
+        }
         .visit-photo-trigger { display: inline-flex; padding: 0; border: 0; border-radius: 4px; background: transparent; cursor: pointer; }
         .visit-photo-trigger:focus-visible { outline: 2px solid #555; outline-offset: 3px; }
         .visit-photo-gallery { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
@@ -2233,10 +2277,8 @@ try {
         .visit-photo-popover-full { display: block; margin-top: 12px; font-size: 13px; text-decoration: none; }
         .photo-inspector-modal { box-sizing: border-box; width: min(560px, calc(100% - 32px)); max-height: calc(100dvh - 32px); margin: auto; padding: 24px; border: 0; border-radius: 12px; color: #333; background: white; box-shadow: 0 16px 64px #0003; overflow-y: auto; }
         .photo-inspector-modal::backdrop { background: #0007; }
-        .photo-inspector-modal header { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 16px; }
-        .photo-inspector-modal h2 { margin: 0; font-size: 18px; }
         .photo-inspector-modal-close { border: 0; background: transparent; color: #666; cursor: pointer; font: inherit; padding: 8px; }
-        .photo-inspector-modal-close { font-size: 24px; line-height: 1; }
+        .photo-inspector-modal-close { position: absolute; right: 12px; top: 12px; font-size: 24px; line-height: 1; }
         .photo-inspector-modal-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
         @media (max-width: 850px) { .photo-search { grid-column: 1 / -1; padding: 18px; } }
     </style>
@@ -2302,13 +2344,14 @@ try {
         <section class="dashboard-card photo-search" data-photo-search aria-labelledby="photo-search-label">
             <label id="photo-search-label" for="photo-search-input">Find photo</label>
             <div class="photo-search-field">
-                <input id="photo-search-input" type="search" placeholder="Photo ID or current title" maxlength="200"
+                <input id="photo-search-input" type="search" placeholder="Photo ID or title" maxlength="200"
                     role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="photo-search-results"
                     autocomplete="off">
+                <button type="button" class="photo-search-clear" data-photo-search-clear aria-label="Clear photo search" hidden><span aria-hidden="true">×</span> Clear</button>
                 <ul id="photo-search-results" role="listbox" aria-label="Matching photos" hidden></ul>
             </div>
             <p class="photo-search-status" role="status" aria-live="polite"></p>
-            <div class="photo-inspector photo-inspector--inline" data-photo-inspector hidden></div>
+            <div class="photo-inspector photo-inspector--detail photo-inspector--inline" data-photo-inspector hidden></div>
         </section>
 
         <section class="dashboard-card hero-card" aria-labelledby="dashboard-hero-title">
@@ -2877,12 +2920,9 @@ try {
 
 </div>
 
-<dialog class="photo-inspector-modal" data-photo-inspector-modal aria-labelledby="photo-inspector-modal-title">
-    <header>
-        <h2 id="photo-inspector-modal-title">Photo inspector</h2>
-        <button type="button" class="photo-inspector-modal-close" data-inspector-close aria-label="Close Photo inspector" autofocus>&times;</button>
-    </header>
-    <div class="photo-inspector" data-modal-inspector hidden></div>
+<dialog class="photo-inspector-modal" data-photo-inspector-modal aria-label="Photo details">
+    <button type="button" class="photo-inspector-modal-close" data-inspector-close aria-label="Close photo details" autofocus>&times;</button>
+    <div class="photo-inspector photo-inspector--detail" data-modal-inspector hidden></div>
     <p class="photo-inspector-modal-status" role="status" aria-live="polite"></p>
 </dialog>
 <template data-visit-popover-icons>

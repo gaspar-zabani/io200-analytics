@@ -23,28 +23,21 @@ try {
     $photo = ['id' => (string)$photoId, 'title' => null, 'image_url' => null,
         'metrics' => $emptyCounts, 'latest' => null, 'albums' => [], 'activity' => []];
 
-    // Read all link types so conflicting non-album routes cannot become album activity.
-    // Exact paths only: nested paths may be Photo Pages or other contexts.
-    $routes = [];
-    $rows = $mysqli->query("SELECT l.path, l.template, l.reference_type,
-        c.id, c.title, c.type
-        FROM cms_links l LEFT JOIN cms_collections c ON c.id = l.reference_id
-        WHERE l.path IS NOT NULL AND l.path <> ''");
-    while ($row = $rows->fetch_assoc()) {
-        if (!is_string($row['path']) || !str_starts_with($row['path'], '/')
-            || str_starts_with($row['path'], '//')) continue;
-        $path = normalizedDashboardPath($row['path']);
-        // The front page can be routed independently of its stored link path.
-        if ($path === null || $path === '/') continue;
-        $album = $row['template'] === 'album' && $row['reference_type'] === 'album'
-            && $row['type'] === 'album' && (int)$row['id'] > 0
-            ? ['id' => (string)$row['id'], 'title' => trim((string)$row['title'])] : null;
-        if (!array_key_exists($path, $routes)) {
-            $routes[$path] = $album;
-        } elseif ($routes[$path] !== $album) {
-            $routes[$path] = null;
+    require_once __DIR__ . '/photo-context.php';
+    $links = $mysqli->query("SELECT path, template, reference_type, reference_id FROM cms_links")->fetch_all(MYSQLI_ASSOC);
+    $collections = $mysqli->query("SELECT id, slug, title, type, published, listed, left_id, right_id FROM cms_collections")->fetch_all(MYSQLI_ASSOC);
+    $photoSlugs = [];
+    $resolveContext = ioaInspectorContextResolver($links, $collections, static function ($slug) use ($mysqli, &$photoSlugs) {
+        if (!array_key_exists($slug, $photoSlugs)) {
+            $lookup = $mysqli->prepare('SELECT id FROM cms_photos WHERE slug = ? AND published = 1');
+            $lookup->bind_param('s', $slug);
+            $lookup->execute();
+            $lookup->store_result();
+            $photoSlugs[$slug] = $lookup->num_rows === 1;
+            $lookup->close();
         }
-    }
+        return $photoSlugs[$slug];
+    });
 
     // Identity may use older recorded images; metrics use precisely the dashboard period.
     $stmt = $mysqli->prepare("SELECT event_type, photo_id, image_url, batch_data,
@@ -78,15 +71,14 @@ try {
         }
         return [$metricKeys[$eventType], $image];
     };
-    $recordContext = static function (&$activity, $pagePath, $key) use ($routes, $emptyCounts) {
-        $path = normalizedDashboardPath($pagePath);
-        $album = $path !== null ? ($routes[$path] ?? null) : null;
-        $context = $album !== null ? 'album:' . $album['id'] : 'other';
-        $activity[$context] ??= ['album_id' => $album['id'] ?? null,
-            'title' => $album !== null ? ($album['title'] ?: 'Album ' . $album['id']) : 'Other / unresolved contexts',
-            'metrics' => $emptyCounts];
+    $recordContext = static function (&$activity, $pagePath, $key) use ($resolveContext, $emptyCounts) {
+        $resolved = $resolveContext($pagePath);
+        $context = $resolved['context_type'] . ':' . ($resolved['album_id'] ?? '');
+        $activity[$context] ??= $resolved + ['metrics' => $emptyCounts];
         $activity[$context]['metrics'][$key]++;
     };
+    // Context lookup may issue a slug query while these rows are being processed.
+    $stmt->store_result();
     while ($stmt->fetch()) {
         $match = $matchPhoto($eventType, $eventPhotoId, $imageUrl, $batchData);
         if ($match === null) continue;

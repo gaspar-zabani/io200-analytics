@@ -15,6 +15,7 @@ RELEASE_FILES = (
     "dashboard.php",
     "photo-search.php",
     "photo-inspector.php",
+    "photo-context.php",
     "visits.php",
     "assets/photo-search.js",
     "assets/photo-inspector.js",
