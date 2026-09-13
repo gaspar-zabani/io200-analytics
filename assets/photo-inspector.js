@@ -121,7 +121,19 @@
         composition.setAttribute('aria-label', 'Photo activity in selected period');
         const activeMetrics = metricData(photo.metrics).filter(([, , total]) => total > 0);
         composition.style.setProperty('--photo-metric-tracks', 'repeat(3, minmax(0, 100px))');
-        composition.append(element('span', document.body.dataset.inspectorPeriod || 'Selected period', 'photo-inspector-period photo-search-period'));
+        const period = element('div', undefined, 'photo-search-period');
+        period.append(element('span', document.body.dataset.inspectorPeriod || 'Selected period', 'photo-inspector-period'));
+        if (photo.latest) {
+            const clock = element('button', undefined, 'photo-search-latest photo-search-metric-detail');
+            clock.type = 'button';
+            clock.title = `Latest activity: ${formatTimestamp(photo.latest)}`;
+            clock.setAttribute('aria-label', clock.title);
+            clock.addEventListener('click', () => clock.focus());
+            const icon = inspectorIcon('clock');
+            if (icon) clock.append(icon);
+            period.append(clock);
+        }
+        composition.append(period);
         renderIdentity(composition, photo, null);
         renderMetrics(composition, photo, false);
         if (activeMetrics.length) {
@@ -146,7 +158,7 @@
         inspector.replaceChildren();
         const header = element('div', undefined, 'photo-inspector-header');
         renderIdentity(header, photo, action);
-        header.append(element('span', `Overall · ${(document.body.dataset.inspectorPeriod || 'Selected period').replace(/^Last /i, '')}`, 'photo-inspector-period'));
+        header.append(element('span', `${visit ? 'Overall · ' : ''}${(document.body.dataset.inspectorPeriod || 'Selected period').replace(/^Last /i, '')}`, 'photo-inspector-period'));
         inspector.append(header);
         const grid = element('div', undefined, 'photo-inspector-analysis');
         grid.setAttribute('role', 'table');
@@ -192,11 +204,17 @@
             group.setAttribute('role', 'rowgroup');
             group.setAttribute('aria-label', isVisit ? 'This visit' : 'Overall activity');
             const available = !isVisit || data.status === 'available';
-            group.append(row(isVisit ? 'This visit' : 'Overall activity', available ? data.metrics : null, true));
-            const note = (content, isSpan = false) => {
+            const totalRow = row(isVisit ? 'This visit' : 'Overall activity', available ? data.metrics : null, true);
+            if (!isVisit && !visit) {
+                const label = totalRow.querySelector('[role="rowheader"]');
+                label.textContent = '';
+                label.append(element('span', 'Overall activity', 'visit-summary__accessible'));
+            }
+            group.append(totalRow);
+            const note = content => {
                 const line = element('div', undefined, 'photo-inspector-analysis-row');
                 line.setAttribute('role', 'row');
-                const cell = element('div', undefined, `photo-inspector-analysis-note${isSpan ? ' photo-inspector-analysis-note--span' : ''}`);
+                const cell = element('div', undefined, 'photo-inspector-analysis-note');
                 cell.setAttribute('role', 'cell');
                 cell.setAttribute('aria-colspan', '4');
                 cell.append(content);
@@ -215,8 +233,16 @@
                     span.title = `Recorded activity span: ${time}`;
                     const clock = inspectorIcon('clock');
                     if (clock) span.append(clock);
-                    span.append(element('span', time, 'visit-summary__value'));
-                    note(span, true);
+                    span.append(element('span', time, 'visit-summary__value' + (first.slice(0, 10) === last.slice(0, 10) ? ' photo-inspector-time-compact' : '')));
+                    span.classList.add('photo-inspector-visit-time');
+                    const timeRow = element('div', undefined, 'photo-inspector-analysis-row');
+                    timeRow.setAttribute('role', 'row');
+                    const timeCell = element('div', undefined, 'photo-inspector-visit-time-cell');
+                    timeCell.setAttribute('role', 'cell');
+                    timeCell.setAttribute('aria-colspan', '4');
+                    timeCell.append(span);
+                    timeRow.append(timeCell);
+                    group.prepend(timeRow);
                 }
                 if (!metricData(data.metrics).some(([, , value]) => value > 0)) {
                     note(element('p', isVisit ? 'No activity for this photo in this visit.' : 'No activity in this period'));
@@ -251,22 +277,23 @@
         }
         const m = visit.metrics;
         const metrics = element('div', undefined, 'visit-popover-metrics');
-        const addMetric = (icon, text, label) => {
+        const addMetric = (icon, text, label, description = '') => {
             if (!text) return;
             const group = element('span', undefined, 'visit-summary__metric');
             group.title = label;
             const svg = document.querySelector('[data-visit-popover-icons]')?.content.querySelector(`[data-icon="${icon}"]`);
             if (svg) group.append(svg.cloneNode(true));
-            const value = element('span', text);
+            const value = element('span', text, 'visit-popover-metric-value');
             value.setAttribute('aria-hidden', 'true');
             group.append(value, element('span', label, 'visit-summary__accessible'));
+            if (description) addSearchDetail(group, label, m.direct_downloads + m.selection_downloads, description);
             metrics.append(group);
         };
         addMetric('views', m.views ? m.views.toLocaleString() : '', count(m.views, 'view'));
-        addMetric('downloads', [m.direct_downloads ? `${m.direct_downloads.toLocaleString()} direct` : '',
-            m.selection_downloads ? `${m.selection_downloads.toLocaleString()} selection` : ''].filter(Boolean).join(' · '),
-            [m.direct_downloads ? count(m.direct_downloads, 'direct download') : '',
-                m.selection_downloads ? count(m.selection_downloads, 'selection download') : ''].filter(Boolean).join(', '));
+        const downloads = m.direct_downloads + m.selection_downloads;
+        addMetric('downloads', downloads ? downloads.toLocaleString() : '', count(downloads, 'download'),
+            [m.direct_downloads ? `${m.direct_downloads.toLocaleString()} direct` : '',
+                m.selection_downloads ? `${m.selection_downloads.toLocaleString()} selection` : ''].filter(Boolean).join(' · '));
         addMetric('basket', [m.basket_adds ? `+${m.basket_adds.toLocaleString()}` : '',
             m.basket_removes ? `−${m.basket_removes.toLocaleString()}` : ''].filter(Boolean).join(' '),
             [m.basket_adds ? count(m.basket_adds, 'basket add') : '',

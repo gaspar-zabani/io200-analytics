@@ -2251,9 +2251,9 @@ try {
         .photo-inspector--detail .photo-inspector-context small { margin: 0; font-size: 12px; }
         .photo-inspector--detail button:focus-visible { outline: 2px solid #555; outline-offset: 2px; }
         .photo-search { container-type: inline-size; }
-        .photo-search input { padding-right: 78px; }
+        .photo-search input { padding-right: 52px; }
         .photo-search input::-webkit-search-cancel-button { -webkit-appearance: none; }
-        .photo-search-clear { position: absolute; right: 8px; top: 8px; padding: 7px 8px; border: 1px solid #e4e5e7; border-radius: 5px; background: white; color: #666; font: inherit; font-size: 13px; cursor: pointer; }
+        .photo-search-clear { position: absolute; right: 2px; top: 2px; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: #74777c; font: inherit; font-size: 22px; cursor: pointer; }
         .photo-search-clear:focus-visible { outline: 2px solid #555; outline-offset: 2px; }
         .photo-inspector-scopes, .photo-inspector-scope { display: grid; gap: 16px; min-width: 0; }
         .photo-inspector-primary, .photo-inspector-details { min-width: 0; }
@@ -2270,7 +2270,10 @@ try {
         .photo-inspector-membership { display: flex; flex-wrap: wrap; gap: 5px; }
         .photo-inspector-album { padding: 3px 7px; border-radius: 5px; background: #f0f1f2; color: #73777d; font-size: 12px; overflow-wrap: anywhere; }
         .photo-search-composition { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(90px, 130px) var(--photo-metric-tracks); gap: 12px 20px; align-items: start; }
-        .photo-search-period { grid-column: 2 / -1; justify-self: end; font-size: 12px; }
+        .photo-search-period { grid-column: 2 / -1; justify-self: end; display: flex; align-items: center; gap: 4px; font-size: 12px; }
+        .photo-inspector button.photo-search-latest { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; cursor: default; }
+        .photo-search-latest svg { width: 14px; height: 14px; }
+        .photo-search-latest:is(:hover, :focus)::after { max-width: min(250px, 65vw); white-space: normal; width: max-content; }
         .photo-search .photo-inspector-identity { grid-column: 1 / 3; grid-row: 2; min-width: 0; gap: 16px; margin-bottom: 0; align-self: center; }
         .photo-search .photo-inspector-preview { flex-basis: 112px; height: 78px; border-radius: 8px; }
         .photo-search .photo-inspector-identity strong { font-size: 20px; }
@@ -2297,7 +2300,7 @@ try {
             .photo-search-no-activity { grid-column: 1 / -1; }
         }
         .photo-search .photo-search-membership, .photo-inspector .photo-inspector-membership-line { margin: 18px 0 0; padding-top: 12px; border-top: 1px solid #f0f0f1; font-size: 12px; line-height: 1.6; }
-        .photo-search-membership-label { margin-right: 10px; }
+        .photo-search-membership-label { margin-right: 10px; color: #555b62; font-weight: 600; }
         .photo-inspector-header { display: flex; flex-wrap: wrap; align-items: start; gap: 12px 20px; padding-right: 28px; margin-bottom: 20px; }
         .photo-inspector-header .photo-inspector-identity { flex: 1 1 240px; margin-bottom: 0; padding-right: 0; }
         .photo-inspector-header > .photo-inspector-period { margin-left: auto; font-size: 12px; }
@@ -2310,12 +2313,14 @@ try {
         .photo-inspector-analysis-total .photo-inspector-analysis-label { font-weight: 600; }
         .photo-inspector-analysis-total .ranking-primary { font-size: 26px; font-weight: 750; line-height: 1.3; }
         .photo-inspector-analysis-note { grid-column: 1 / -1; min-width: 0; align-self: start; }
-        .photo-inspector-analysis-note--span { display: grid; grid-template-columns: subgrid; }
-        .photo-inspector-analysis-note .visit-summary__metric--span { grid-column: 1; justify-self: end; white-space: normal; }
+        .photo-inspector-visit-time-cell { grid-column: 1 / -1; display: flex; justify-content: flex-end; min-width: 0; }
+        .photo-inspector-visit-time { display: inline-flex; justify-content: flex-end; flex-wrap: wrap; gap: 4px; color: #85888d; font-size: 12px; font-weight: 400; white-space: normal; }
+        .photo-inspector-visit-time .visit-summary__value { font-size: inherit; font-weight: inherit; }
         .photo-inspector-analysis-note p { margin: 0; }
         @container (max-width: 499px) {
             .photo-inspector-analysis { grid-template-columns: minmax(70px, 1fr) repeat(3, minmax(0, 100px)); column-gap: 12px; }
-            .photo-inspector-analysis-note .visit-summary__metric--span { grid-column: 1 / -1; justify-self: start; }
+            .photo-inspector-visit-time { font-size: 11px; }
+            .photo-inspector-visit-time .photo-inspector-time-compact { white-space: nowrap; }
         }
         .visit-photo-trigger { display: inline-flex; padding: 0; border: 0; border-radius: 4px; background: transparent; cursor: pointer; }
         .visit-photo-trigger:focus-visible { outline: 2px solid #555; outline-offset: 3px; }
@@ -2334,9 +2339,14 @@ try {
         .visit-photo-popover[data-placement="right"]::before { left: -6px; top: calc(var(--pointer-offset) - 5px); border-width: 0 0 1px 1px; }
         .visit-photo-popover:not([data-placement])::before { display: none; }
         .visit-popover-metrics { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; margin: 10px 0; font-size: 13px; }
-        .visit-popover-metrics svg { width: 16px; height: 16px; flex: 0 0 16px; }
-        .visit-photo-popover .visit-popover-context { color: #444; margin-top: 10px; }
-        .visit-photo-popover .visit-popover-time { font-variant-numeric: tabular-nums; }
+        .visit-popover-metrics .photo-search-metric-detail::after { right: auto; left: 0; max-width: 160px; white-space: normal; width: max-content; }
+        .dashboard-home { color: inherit; text-decoration: none; }
+        .dashboard-home:hover { opacity: .75; }
+        .dashboard-home:focus-visible { outline: 2px solid #555; outline-offset: 4px; border-radius: 2px; }
+        .visit-popover-metric-value { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+        .visit-popover-metrics svg { color: #85888d; width: 16px; height: 16px; flex: 0 0 16px; }
+        .visit-photo-popover .visit-popover-context { color: #85888d; margin-top: 10px; }
+        .visit-photo-popover .visit-popover-time { color: #85888d; font-size: 12px; font-variant-numeric: tabular-nums; }
         .visit-photo-popover:focus-visible { outline: 2px solid #777; outline-offset: 2px; }
         .visit-photo-popover .photo-inspector-identity { padding-right: 24px; }
         .visit-photo-popover .photo-inspector-preview { flex-basis: 44px; height: 44px; }
@@ -2374,7 +2384,7 @@ try {
 
         <div>
 
-            <h1><?= ioa_t('app_name') ?></h1>
+            <h1><a class="dashboard-home" href="?"><?= ioa_t('app_name') ?></a></h1>
 
             <p class="subtitle">
                 <?= ioa_t('dashboard_subtitle') ?>
@@ -2415,7 +2425,7 @@ try {
                 <input id="photo-search-input" type="search" placeholder="Photo ID or title" maxlength="200"
                     role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="photo-search-results"
                     autocomplete="off">
-                <button type="button" class="photo-search-clear" data-photo-search-clear aria-label="Clear photo search" hidden><span aria-hidden="true">×</span> Clear</button>
+                <button type="button" class="photo-search-clear" data-photo-search-clear aria-label="Clear search" hidden><span aria-hidden="true">×</span></button>
                 <ul id="photo-search-results" role="listbox" aria-label="Matching photos" hidden></ul>
             </div>
             <p class="photo-search-status" role="status" aria-live="polite"></p>
@@ -2876,9 +2886,7 @@ try {
                                                     </<?= $captionTag ?>>
                                                 </<?= $rankingTag ?>>
                                             <?php endforeach; ?>
-                                            <?php if ($group === 'basket' && $visit['more_basket_actions'] > 0): ?>
-                                                <div class="photo-item__meta"><?= h(sprintf(ioa_translate('more_basket_actions'), $visit['more_basket_actions'])) ?></div>
-                                            <?php endif; ?>
+
                                         </section>
                                     <?php endforeach; ?>
                                 </div>
@@ -2994,7 +3002,7 @@ try {
     <div class="visit-photo-popover-surface">
         <button type="button" class="visit-photo-popover-close" data-popover-close aria-label="Close photo activity">&times;</button>
         <div class="photo-inspector" data-popover-content></div>
-        <button type="button" class="visit-photo-popover-full" data-popover-full>Full inspector <span aria-hidden="true">→</span></button>
+        <button type="button" class="visit-photo-popover-full" data-popover-full>View details <span aria-hidden="true">→</span></button>
         <span class="photo-inspector-modal-status" data-popover-status role="status" aria-live="polite"></span>
     </div>
 </div>
