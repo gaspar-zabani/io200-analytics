@@ -2765,8 +2765,8 @@ try {
                                             <?php
                                             $headerMetrics = [
                                                 [
-                                                    'value' => $visit['unique_photos_viewed'],
-                                                    'label' => formatCountLabel($visit['unique_photos_viewed'], 'one_photo_viewed', 'photos_viewed_count', '%d photo viewed', '%d photos viewed'),
+                                                    'value' => $visit['photo_views'],
+                                                    'label' => formatCountLabel($visit['photo_views'], 'one_view', 'views_count', '%d view', '%d views'),
                                                     'icon' => '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>'
                                                 ],
                                                 [
