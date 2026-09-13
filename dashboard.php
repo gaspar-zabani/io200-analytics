@@ -2268,13 +2268,26 @@ try {
             .photo-search .photo-search-locations { grid-column: 1 / -1; }
             .photo-search-no-activity { grid-column: 1 / -1; }
         }
-        .photo-search .photo-search-membership { margin: 18px 0 0; padding-top: 12px; border-top: 1px solid #f0f0f1; font-size: 12px; line-height: 1.6; }
+        .photo-search .photo-search-membership, .photo-inspector .photo-inspector-membership-line { margin: 18px 0 0; padding-top: 12px; border-top: 1px solid #f0f0f1; font-size: 12px; line-height: 1.6; }
         .photo-search-membership-label { margin-right: 10px; }
-        @media (min-width: 850px) {
-            .photo-inspector-modal:has(.photo-inspector-scopes--visit) { width: min(960px, calc(100% - 64px)); }
-            .photo-inspector-scopes--visit { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 32px; }
-            .photo-inspector-scopes--visit .photo-inspector-scope { grid-row: span 3; grid-template-rows: subgrid; }
-            .photo-inspector-scopes--visit .photo-inspector-primary { display: grid; grid-template-rows: auto 1fr auto; }
+        .photo-inspector-header { display: flex; flex-wrap: wrap; align-items: start; gap: 12px 20px; padding-right: 28px; margin-bottom: 20px; }
+        .photo-inspector-header .photo-inspector-identity { flex: 1 1 240px; margin-bottom: 0; padding-right: 0; }
+        .photo-inspector-header > .photo-inspector-period { margin-left: auto; font-size: 12px; }
+        .photo-inspector-analysis { display: grid; grid-template-columns: minmax(130px, 1fr) repeat(3, minmax(0, 100px)); gap: 12px 20px; font-size: 13px; font-variant-numeric: tabular-nums; }
+        .photo-inspector-analysis-row, .photo-inspector-analysis-scope { display: grid; grid-template-columns: subgrid; grid-column: 1 / -1; column-gap: inherit; min-width: 0; align-items: baseline; }
+        .photo-inspector-analysis-scope { row-gap: 12px; }
+        .photo-inspector-analysis-scope + .photo-inspector-analysis-scope { margin-top: 12px; }
+        .photo-inspector-analysis-label { text-align: right; overflow-wrap: anywhere; min-width: 0; }
+        .photo-inspector-analysis-value { display: flex; justify-content: end; min-width: 0; }
+        .photo-inspector-analysis-total .photo-inspector-analysis-label { font-weight: 600; }
+        .photo-inspector-analysis-total .ranking-primary { font-size: 26px; font-weight: 750; line-height: 1.3; }
+        .photo-inspector-analysis-note { grid-column: 1 / -1; min-width: 0; align-self: start; }
+        .photo-inspector-analysis-note--span { display: grid; grid-template-columns: subgrid; }
+        .photo-inspector-analysis-note .visit-summary__metric--span { grid-column: 1; justify-self: end; white-space: normal; }
+        .photo-inspector-analysis-note p { margin: 0; }
+        @container (max-width: 499px) {
+            .photo-inspector-analysis { grid-template-columns: minmax(70px, 1fr) repeat(3, minmax(0, 100px)); column-gap: 12px; }
+            .photo-inspector-analysis-note .visit-summary__metric--span { grid-column: 1 / -1; justify-self: start; }
         }
         .visit-photo-trigger { display: inline-flex; padding: 0; border: 0; border-radius: 4px; background: transparent; cursor: pointer; }
         .visit-photo-trigger:focus-visible { outline: 2px solid #555; outline-offset: 3px; }
@@ -2302,7 +2315,7 @@ try {
         .visit-photo-popover-close, .visit-photo-popover-full { border: 0; background: transparent; color: #555; cursor: pointer; font: inherit; padding: 6px; }
         .visit-photo-popover-close { position: absolute; right: 8px; top: 8px; font-size: 22px; line-height: 1; }
         .visit-photo-popover-full { display: block; margin-top: 12px; font-size: 13px; text-decoration: none; }
-        .photo-inspector-modal { box-sizing: border-box; width: min(560px, calc(100% - 32px)); max-height: calc(100dvh - 32px); margin: auto; padding: 24px; border: 0; border-radius: 12px; color: #333; background: white; box-shadow: 0 16px 64px #0003; overflow-y: auto; }
+        .photo-inspector-modal { container-type: inline-size; box-sizing: border-box; width: min(680px, calc(100% - 32px)); max-height: calc(100dvh - 32px); margin: auto; padding: 24px; border: 0; border-radius: 12px; color: #333; background: white; box-shadow: 0 16px 64px #0003; overflow-y: auto; }
         .photo-inspector-modal::backdrop { background: #0007; }
         .photo-inspector-modal-close { border: 0; background: transparent; color: #666; cursor: pointer; font: inherit; padding: 8px; }
         .photo-inspector-modal-close { position: absolute; right: 12px; top: 12px; font-size: 24px; line-height: 1; }
@@ -2953,6 +2966,7 @@ try {
     <p class="photo-inspector-modal-status" role="status" aria-live="polite"></p>
 </dialog>
 <template data-visit-popover-icons>
+<svg data-icon="clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
 <svg data-icon="views" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
 <svg data-icon="downloads" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 3v12m-4-4 4 4 4-4M5 17v4h14v-4"/></svg>
 <svg data-icon="basket" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m8 3-4 6m12-6 4 6M2 9h20l-3 12H5L2 9Zm7 4v4m6-4v4"/></svg>
@@ -2965,7 +2979,7 @@ try {
         <span class="photo-inspector-modal-status" data-popover-status role="status" aria-live="polite"></span>
     </div>
 </div>
-<script src="assets/photo-inspector.js" defer></script>
+<script src="assets/photo-inspector.js?v=<?= h(substr(hash_file('sha256', __DIR__ . '/assets/photo-inspector.js'), 0, 12)) ?>" defer></script>
 <script src="assets/photo-search.js" defer></script>
 <script src="assets/photo-inspector-modal.js" defer></script>
 <script src="assets/visit-photo-popover.js" defer></script>

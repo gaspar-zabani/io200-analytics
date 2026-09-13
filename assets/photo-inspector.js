@@ -145,46 +145,101 @@
     };
     const renderInspector = (inspector, photo, action, visit = null) => {
         inspector.replaceChildren();
-        renderIdentity(inspector, photo, action);
-        const scopes = element('div', undefined, visit ? 'photo-inspector-scopes photo-inspector-scopes--visit' : 'photo-inspector-scopes');
+        const header = element('div', undefined, 'photo-inspector-header');
+        renderIdentity(header, photo, action);
+        header.append(element('span', `Overall · ${(document.body.dataset.inspectorPeriod || 'Selected period').replace(/^Last /i, '')}`, 'photo-inspector-period'));
+        inspector.append(header);
+        const grid = element('div', undefined, 'photo-inspector-analysis');
+        grid.setAttribute('role', 'table');
+        grid.setAttribute('aria-label', 'Photo activity by scope and location');
+        const headings = element('div', undefined, 'photo-inspector-analysis-row');
+        headings.setAttribute('role', 'row');
+        const labelHeading = element('span', undefined, 'photo-inspector-analysis-label');
+        labelHeading.setAttribute('role', 'columnheader');
+        labelHeading.append(element('span', 'Scope or location', 'visit-summary__accessible'));
+        headings.append(labelHeading);
+        metricData(photo.metrics).forEach(([icon, label]) => {
+            const heading = element('span', undefined, 'visit-summary__metric photo-inspector-analysis-value');
+            heading.setAttribute('role', 'columnheader');
+            heading.title = label;
+            const svg = inspectorIcon(icon);
+            if (svg) heading.append(svg);
+            heading.append(element('span', label, 'visit-summary__accessible'));
+            headings.append(heading);
+        });
+        grid.append(headings);
+        const row = (label, metrics, total = false, albumId = null) => {
+            const result = element('div', undefined, `photo-inspector-analysis-row${total ? ' photo-inspector-analysis-total' : ''}`);
+            result.setAttribute('role', 'row');
+            const name = element('span', label, 'photo-inspector-analysis-label');
+            name.setAttribute('role', 'rowheader');
+            if (albumId !== null) name.dataset.albumId = albumId;
+            result.append(name);
+            metricData(metrics || {}).forEach(([, metricLabel, value, description]) => {
+                const cell = element('span', undefined, 'photo-inspector-analysis-value');
+                cell.setAttribute('role', 'cell');
+                if (value > 0) {
+                    const number = element('span', value.toLocaleString(), total ? 'ranking-primary' : '');
+                    number.setAttribute('aria-label', `${metricLabel}: ${value.toLocaleString()}`);
+                    addSearchDetail(number, metricLabel, value, description);
+                    cell.append(number);
+                }
+                result.append(cell);
+            });
+            return result;
+        };
         const scope = (data, isVisit) => {
-            const section = element('section', undefined, 'photo-inspector-scope');
-            if (visit) section.append(element('h3', isVisit ? 'This visit' : 'Overall photo activity', 'photo-inspector-scope-title'));
-            const primary = element('div', undefined, 'photo-inspector-primary');
-            const scopeLabel = element('p', undefined, 'photo-inspector-meta');
-            scopeLabel.append(element('span', isVisit ? 'Whole visit' : (document.body.dataset.inspectorPeriod || 'Selected period').replace(/^Last /i, ''), isVisit ? '' : 'photo-inspector-period'));
-            primary.append(scopeLabel);
-            const details = element('div', undefined, 'photo-inspector-details');
-            if (isVisit && data.status !== 'available') {
-                primary.append(element('p', data.status === 'outside_period' ? 'This visit is outside the selected period.' : 'Visit context unavailable.'));
+            const group = element('div', undefined, 'photo-inspector-analysis-scope');
+            group.setAttribute('role', 'rowgroup');
+            group.setAttribute('aria-label', isVisit ? 'This visit' : 'Overall activity');
+            const available = !isVisit || data.status === 'available';
+            group.append(row(isVisit ? 'This visit' : 'Overall activity', available ? data.metrics : null, true));
+            const note = (content, isSpan = false) => {
+                const line = element('div', undefined, 'photo-inspector-analysis-row');
+                line.setAttribute('role', 'row');
+                const cell = element('div', undefined, `photo-inspector-analysis-note${isSpan ? ' photo-inspector-analysis-note--span' : ''}`);
+                cell.setAttribute('role', 'cell');
+                cell.setAttribute('aria-colspan', '4');
+                cell.append(content);
+                line.append(cell);
+                group.append(line);
+            };
+            if (!available) {
+                note(element('p', data.status === 'outside_period' ? 'This visit is outside the selected period.' : 'Visit context unavailable.'));
             } else {
-                renderMetrics(primary, data);
-                let time;
-                if (isVisit) {
+                if (isVisit && data.first_activity) {
                     const first = data.first_activity, last = data.latest_activity || first;
-                    time = !first ? 'No activity for this photo in this visit.' : first.slice(0, 10) === last.slice(0, 10)
+                    const time = first.slice(0, 10) === last.slice(0, 10)
                         ? first.slice(11, 16) + (first.slice(11, 16) === last.slice(11, 16) ? '' : `–${last.slice(11, 16)}`)
                         : `${formatTimestamp(first)}–${formatTimestamp(last)}`;
-                } else time = data.latest ? `Latest activity: ${formatTimestamp(data.latest)}` : 'No activity in this period';
-                primary.append(element('p', time, 'photo-inspector-meta'));
-                renderActivity(details, data);
+                    const span = element('span', undefined, 'visit-summary__metric visit-summary__metric--span');
+                    span.title = `Recorded activity span: ${time}`;
+                    const clock = inspectorIcon('clock');
+                    if (clock) span.append(clock);
+                    span.append(element('span', time, 'visit-summary__value'));
+                    note(span, true);
+                }
+                if (!metricData(data.metrics).some(([, , value]) => value > 0)) {
+                    note(element('p', isVisit ? 'No activity for this photo in this visit.' : 'No activity in this period'));
+                }
+                data.activity.forEach(context => group.append(row(context.title, context.metrics, false, context.album_id)));
             }
-            if (!isVisit && photo.albums.length) {
-                details.append(element('h3', 'Appears in'));
-                const membership = element('div', undefined, 'photo-inspector-membership');
-                photo.albums.forEach(album => {
-                    const tag = element('span', album.title, 'photo-inspector-album');
-                    tag.dataset.albumId = album.id;
-                    membership.append(tag);
-                });
-                details.append(membership);
-            }
-            section.append(primary, details);
-            return section;
+            grid.append(group);
         };
-        if (visit) scopes.append(scope(visit, true));
-        scopes.append(scope(photo, false));
-        inspector.append(scopes);
+        scope(photo, false);
+        if (visit) scope(visit, true);
+        inspector.append(grid);
+        if (photo.albums.length) {
+            const membership = element('p', undefined, 'photo-inspector-membership-line');
+            membership.append(element('span', 'Belongs to', 'photo-search-membership-label'));
+            photo.albums.forEach((album, index) => {
+                if (index) membership.append(document.createTextNode(' · '));
+                const name = element('span', album.title);
+                name.dataset.albumId = album.id;
+                membership.append(name);
+            });
+            inspector.append(membership);
+        }
     };
     const renderVisitPopover = (container, identity, visit) => {
         container.replaceChildren();
