@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.0-beta.5
+
+- Added Find photo search by photo ID or title, with aligned activity totals, recorded locations, album membership and latest-activity details.
+- Added Full Photo Inspector with a shared metric grid for Overall and optional This visit activity, plus compact download and basket detail tooltips.
+- Added Visit photo popovers and direct Inspector navigation from Visit and global photo rankings.
+- Made Visit Details reflect additional photos, contexts, downloads or basket activity; repeated views alone no longer create a disclosure. Visit header views now count every view event.
+- Display resolved Visit album contexts using current CMS album titles while preserving unresolved and non-album fallbacks.
+- Refined mobile spacing, search clearing, scope/time and membership labels, ranking icons and compact popover metrics. Added a dashboard Home link.
+
 ## Unreleased
 
 ### External testing readiness
