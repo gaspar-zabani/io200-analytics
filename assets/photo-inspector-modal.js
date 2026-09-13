@@ -34,8 +34,8 @@
     };
     document.addEventListener('click', event => {
         const trigger = event.target instanceof Element
-            ? event.target.closest('button[data-visit-ranking-inspector]') : null;
-        if (trigger) window.openPhotoInspector(trigger.dataset.photoId, trigger, trigger.dataset.visitId);
+            ? event.target.closest('button[data-visit-ranking-inspector], button[data-global-ranking-inspector]') : null;
+        if (trigger) window.openPhotoInspector(trigger.dataset.photoId, trigger, trigger.hasAttribute('data-visit-ranking-inspector') ? trigger.dataset.visitId : null);
     });
     closeButton.addEventListener('click', close);
     dialog.addEventListener('cancel', event => { event.preventDefault(); close(); });

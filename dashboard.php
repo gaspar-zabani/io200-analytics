@@ -1069,6 +1069,17 @@ try {
         });
     }
 
+    // Display-only: share Inspector's safe recorded-route resolution, not photo membership.
+    $visitContextTitles = [];
+    $resolveVisitTitle = null;
+    if ($recentVisits) {
+        require_once __DIR__ . '/photo-context.php';
+        $links = $mysqli->query("SELECT path, template, reference_type, reference_id FROM cms_links")->fetch_all(MYSQLI_ASSOC);
+        $collections = $mysqli->query("SELECT id, slug, title, type, published, listed, left_id, right_id FROM cms_collections")->fetch_all(MYSQLI_ASSOC);
+        // Only album results are used here; photo-page recognition cannot provide an album title.
+        $resolveVisitTitle = ioaInspectorContextResolver($links, $collections, static fn($slug) => false);
+    }
+
     foreach ($recentVisits as &$visit) {
         $contextKeys = [];
         $viewedPhotoIds = [];
@@ -1094,6 +1105,18 @@ try {
                         break;
                     }
                 }
+            }
+
+            if ($resolveVisitTitle !== null) {
+                $rawPath = $event['page_path'] ?? null;
+                $cacheKey = (string)$rawPath;
+                if (!array_key_exists($cacheKey, $visitContextTitles)) {
+                    $resolved = $resolveVisitTitle($rawPath);
+                    $visitContextTitles[$cacheKey] = $resolved['context_type'] === 'album'
+                        ? $resolved['title'] : null;
+                }
+                // Keep existing context keys, non-album labels and unresolved fallbacks intact.
+                $contextTitle = $visitContextTitles[$cacheKey] ?? $contextTitle;
             }
 
             if ($contextTitle !== null) {
@@ -1502,6 +1525,10 @@ try {
 
             min-width: 0;
         }
+
+        button.global-ranking-inspector { width: 100%; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+        .global-ranking-inspector .photo-item__id { display: block; }
+        button.global-ranking-inspector:focus-visible { outline: 2px solid #555; outline-offset: 3px; }
 
         .photo-item--featured {
             gap: 16px;
@@ -2597,16 +2624,10 @@ try {
 
                         <td>
 
-                            <div class="photo-item">
+                            <button type="button" class="photo-item global-ranking-inspector" data-global-ranking-inspector data-photo-id="<?= h($photo['photo_id']) ?>" aria-haspopup="dialog" aria-label="<?= h('Open Full Inspector for ' . (!empty($photo['title']) ? $photo['title'] : ioa_translate('photo') . ' ' . $photo['photo_id'])) ?>">
 
                                 <?php if (!empty($photo['image_url'])): ?>
 
-                                    <a
-                                        class="thumbnail-link"
-                                        href="<?= h($photo['image_url']) ?>"
-                                        target="_blank"
-                                        rel="noopener"
-                                    >
 
                                         <img
                                             class="photo-item__thumbnail"
@@ -2615,11 +2636,11 @@ try {
                                             loading="lazy"
                                         >
 
-                                    </a>
+
 
                                 <?php endif; ?>
 
-                                <div class="photo-item__body">
+                                <span class="photo-item__body">
 
                                     <span class="ranking-primary" title="<?= h(formatCountLabel($photo['views'], 'one_view', 'views_count', '%d view', '%d views')) ?>">
                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -2627,18 +2648,18 @@ try {
                                         <span class="ranking-primary__accessible"><?= h(formatCountLabel($photo['views'], 'one_view', 'views_count', '%d view', '%d views')) ?></span>
                                     </span>
                                     <?php if (!empty($photo['title'])): ?>
-                                        <div class="photo-item__id photo-item__meta--truncate">
+                                        <span class="photo-item__id photo-item__meta--truncate">
                                             <?= h($photo['title']) ?>
-                                        </div>
+                                        </span>
                                     <?php else: ?>
-                                        <div class="photo-item__id">
+                                        <span class="photo-item__id">
                                             <?= ioa_t('photo') ?> <?= h($photo['photo_id']) ?>
-                                        </div>
+                                        </span>
                                     <?php endif; ?>
 
-                                </div>
+                                </span>
 
-                            </div>
+                            </button>
 
                         </td>
 
@@ -2681,40 +2702,34 @@ try {
                                 <tbody class="ranking-item">
                                 <tr class="ranking-item__main">
                                     <td>
-                                        <div class="photo-item">
+                                        <button type="button" class="photo-item global-ranking-inspector" data-global-ranking-inspector data-photo-id="<?= h($photo['photo_id']) ?>" aria-haspopup="dialog" aria-label="<?= h('Open Full Inspector for ' . (!empty($photo['title']) ? $photo['title'] : ioa_translate('photo') . ' ' . $photo['photo_id'])) ?>">
                                             <?php if (!empty($photo['image_url'])): ?>
-                                                <a
-                                                    class="thumbnail-link"
-                                                    href="<?= h($photo['image_url']) ?>"
-                                                    target="_blank"
-                                                    rel="noopener"
-                                                >
                                                     <img
                                                         class="photo-item__thumbnail"
                                                         src="<?= h($photo['image_url']) ?>"
                                                         alt=""
                                                         loading="lazy"
                                                     >
-                                                </a>
+
                                             <?php endif; ?>
 
-                                            <div class="photo-item__body">
+                                            <span class="photo-item__body">
                                                 <span class="ranking-primary" title="<?= h(formatCountLabel($photo['downloads'], 'one_download', 'downloads_count', '%d download', '%d downloads')) ?>">
                                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 3v12m-4-4 4 4 4-4M5 17v4h14v-4"/></svg>
                                                     <span aria-hidden="true"><?= (int)$photo['downloads'] ?></span>
                                                     <span class="ranking-primary__accessible"><?= h(formatCountLabel($photo['downloads'], 'one_download', 'downloads_count', '%d download', '%d downloads')) ?></span>
                                                 </span>
                                                 <?php if (!empty($photo['title'])): ?>
-                                                    <div class="photo-item__id photo-item__meta--truncate">
+                                                    <span class="photo-item__id photo-item__meta--truncate">
                                                         <?= h($photo['title']) ?>
-                                                    </div>
+                                                    </span>
                                                 <?php else: ?>
-                                                    <div class="photo-item__id">
+                                                    <span class="photo-item__id">
                                                         <?= ioa_t('photo') ?> <?= h($photo['photo_id']) ?>
-                                                    </div>
+                                                    </span>
                                                 <?php endif; ?>
-                                            </div>
-                                        </div>
+                                            </span>
+                                        </button>
                                     </td>
 
                                 </tr>
