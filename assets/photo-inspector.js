@@ -66,7 +66,6 @@
     };
     const renderActivity = (inspector, photo, search = false) => {
         if (!photo.activity.length) return;
-        inspector.append(element('h3', 'Activity location'));
         const types = ['views', 'direct_downloads', 'selection_downloads', 'basket_adds', 'basket_removes'];
         const showCounts = search || photo.activity.length > 1 || types.filter(key => photo.metrics[key] > 0).length > 1;
         const columns = [0, 1, 2].filter(i => search || photo.activity.some(context => metricData(context.metrics)[i][2] > 0));

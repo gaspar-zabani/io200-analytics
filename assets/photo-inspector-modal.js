@@ -32,6 +32,11 @@
         instance.load(id, visitId);
         return true;
     };
+    document.addEventListener('click', event => {
+        const trigger = event.target instanceof Element
+            ? event.target.closest('button[data-visit-ranking-inspector]') : null;
+        if (trigger) window.openPhotoInspector(trigger.dataset.photoId, trigger, trigger.dataset.visitId);
+    });
     closeButton.addEventListener('click', close);
     dialog.addEventListener('cancel', event => { event.preventDefault(); close(); });
     dialog.addEventListener('close', () => { if (!dialog.open) cleanup(); });

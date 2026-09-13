@@ -1604,6 +1604,8 @@ try {
         .visit-highlight-group { min-width: 0; }
         .visit-highlight-group h3 { margin: 4px 0 12px; font-size: 13px; color: #4f5358; }
         .visit-highlight-photo { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+        button.visit-highlight-photo { width: 100%; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+        button.visit-highlight-photo:focus-visible { outline: 2px solid #555; outline-offset: 3px; }
         .visit-highlight-image { width: 56px; height: 56px; flex: 0 0 56px; object-fit: cover; border-radius: 5px; background: #f0f1f2; }
         .visit-image-placeholder { display: grid; place-items: center; color: #85888d; }
         .visit-highlight-caption { min-width: 0; }
@@ -2254,17 +2256,16 @@ try {
         .photo-search-metric-detail:focus-visible { outline: 2px solid #555; outline-offset: 3px; border-radius: 2px; }
         .photo-search-metric-detail:is(:hover, :focus)::after { content: attr(title); position: absolute; z-index: 10; right: 0; top: calc(100% + 6px); padding: 6px 8px; border: 1px solid #e1e1e1; border-radius: 4px; background: white; color: #41464c; box-shadow: 0 2px 8px #0001; font-size: 12px; font-weight: 400; line-height: 1.5; white-space: pre; text-align: left; }
 
-        .photo-search-composition > h3 { grid-column: 2; justify-self: end; text-align: right; white-space: nowrap; margin: 8px 0 0; }
         .photo-search .photo-search-locations { display: grid; grid-template-columns: subgrid; grid-column: 2 / -1; column-gap: inherit; row-gap: 12px; }
         .photo-search-locations .photo-inspector-location-name { text-align: right; }
         .photo-search-locations .photo-inspector-location-value small { margin-top: 2px; }
         .photo-search-no-activity { grid-column: 2 / -1; }
         @container (max-width: 599px) {
-            .photo-search-composition { grid-template-columns: minmax(70px, 1fr) var(--photo-metric-tracks); column-gap: 12px; }
+            .photo-search-composition { grid-template-columns: minmax(70px, 1fr) var(--photo-metric-tracks); gap: 8px 12px; }
+            .photo-search .photo-inspector--inline { padding-top: 10px; }
             .photo-search-period { grid-column: 1 / -1; }
             .photo-search .photo-inspector-identity { grid-column: 1 / -1; }
             .photo-search .photo-inspector-metrics { grid-column: 2 / -1; grid-row: 3; }
-            .photo-search-composition > h3 { grid-column: 1; }
             .photo-search .photo-search-locations { grid-column: 1 / -1; }
             .photo-search-no-activity { grid-column: 1 / -1; }
         }
@@ -2748,7 +2749,7 @@ try {
                     <div class="visit-list">
                         <?php foreach ($recentVisits as $visit): ?>
                             <?php
-                            $isExpandable = count($visit['events']) > 1;
+                            $isExpandable = ioaVisitHasDetails($visit);
                             $visitTag = $isExpandable ? 'details' : 'div';
                             $headerTag = $isExpandable ? 'summary' : 'div';
                             ?>
@@ -2819,21 +2820,29 @@ try {
                                 <div class="visit-highlights">
                                     <?php foreach ($visit['highlights'] as $group => $photos): ?>
                                         <section class="visit-highlight-group">
-                                            <h3><?= ioa_t(['views' => 'tab_most_viewed', 'downloads' => 'tab_most_downloaded', 'basket' => 'basket_activity'][$group]) ?></h3>
+                                            <h3 class="visit-summary__metric">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><?= $headerMetrics[['views' => 0, 'downloads' => 1, 'basket' => 2][$group]]['icon'] ?></svg>
+                                                <?= ioa_t(['views' => 'tab_most_viewed', 'downloads' => 'tab_most_downloaded', 'basket' => 'basket_activity'][$group]) ?>
+                                            </h3>
                                             <?php foreach ($photos as $photo): ?>
-                                                <div class="visit-highlight-photo">
+                                                <?php
+                                                $directInspector = in_array($group, ['views', 'downloads', 'basket'], true);
+                                                $rankingTag = $directInspector ? 'button' : 'div';
+                                                $captionTag = $directInspector ? 'span' : 'div';
+                                                $rankingTitle = $photoTitles[$photo['photo_id']] ?? (ioa_translate('photo') . ' ' . $photo['photo_id']);
+                                                ?>
+                                                <<?= $rankingTag ?> class="visit-highlight-photo"<?php if ($directInspector): ?> type="button" data-visit-ranking-inspector data-photo-id="<?= h($photo['photo_id']) ?>" data-visit-id="<?= (int)$visit['visit_id'] ?>" aria-haspopup="dialog" aria-label="<?= h('Open Full Inspector for ' . $rankingTitle . ' in this Visit') ?>"<?php endif; ?>>
                                                     <?php if (isset($visitImages[$photo['photo_id']])): ?>
                                                         <img class="visit-highlight-image" src="<?= h($visitImages[$photo['photo_id']]) ?>" alt="" loading="lazy">
                                                     <?php else: ?>
                                                         <span class="visit-highlight-image visit-image-placeholder" role="img" aria-label="<?= ioa_t('no_preview') ?>">&ndash;</span>
                                                     <?php endif; ?>
-                                                    <div class="visit-highlight-caption visit-highlight-caption--ranking">
+                                                    <<?= $captionTag ?> class="visit-highlight-caption visit-highlight-caption--ranking">
                                                         <?php if ($group === 'basket'): ?>
                                                             <?php
                                                             $basketActionLabel = ioa_translate($photo['event_type'] === 'basket_add' ? 'basket_action_added' : 'basket_action_removed');
                                                             ?>
                                                             <span class="ranking-primary visit-highlight-basket-action">
-                                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m8 3-4 6m12-6 4 6M2 9h20l-3 12H5L2 9Zm7 4v4m6-4v4"/></svg>
                                                                 <span><?= h($basketActionLabel) ?></span>
                                                             </span>
                                                         <?php endif; ?>
@@ -2844,18 +2853,13 @@ try {
                                                                 : formatCountLabel($photo['downloads'], 'one_download', 'downloads_count', '%d download', '%d downloads');
                                                             ?>
                                                             <span class="ranking-primary" title="<?= h($highlightMetricLabel) ?>">
-                                                                <?php if ($group === 'views'): ?>
-                                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
-                                                                <?php else: ?>
-                                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 3v12m-4-4 4 4 4-4M5 17v4h14v-4"/></svg>
-                                                                <?php endif; ?>
                                                                 <span aria-hidden="true"><?= (int)$photo[$group] ?></span>
                                                                 <span class="ranking-primary__accessible"><?= h($highlightMetricLabel) ?></span>
                                                             </span>
                                                         <?php endif; ?>
-                                                        <div class="visit-highlight-title"><?= h($photoTitles[$photo['photo_id']] ?? (ioa_translate('photo') . ' ' . $photo['photo_id'])) ?></div>
-                                                    </div>
-                                                </div>
+                                                        <<?= $captionTag ?> class="visit-highlight-title"><?= h($rankingTitle) ?></<?= $captionTag ?>>
+                                                    </<?= $captionTag ?>>
+                                                </<?= $rankingTag ?>>
                                             <?php endforeach; ?>
                                             <?php if ($group === 'basket' && $visit['more_basket_actions'] > 0): ?>
                                                 <div class="photo-item__meta"><?= h(sprintf(ioa_translate('more_basket_actions'), $visit['more_basket_actions'])) ?></div>
@@ -2981,7 +2985,7 @@ try {
 </div>
 <script src="assets/photo-inspector.js?v=<?= h(substr(hash_file('sha256', __DIR__ . '/assets/photo-inspector.js'), 0, 12)) ?>" defer></script>
 <script src="assets/photo-search.js" defer></script>
-<script src="assets/photo-inspector-modal.js" defer></script>
+<script src="assets/photo-inspector-modal.js?v=<?= h(substr(hash_file('sha256', __DIR__ . '/assets/photo-inspector-modal.js'), 0, 12)) ?>" defer></script>
 <script src="assets/visit-photo-popover.js" defer></script>
 <script src="assets/visit-photo-gallery.js" defer></script>
 <script>
