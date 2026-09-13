@@ -9,19 +9,15 @@
     let prepareQuery = false;
     const clear = root.querySelector('[data-photo-search-clear]');
     const syncClear = () => { clear.hidden = !input.value && !root.dataset.selectedPhotoId; };
-    const selectQuery = () => {
+    const prepareSearch = () => {
         if (!prepareQuery || !root.dataset.selectedPhotoId) return;
-        input.select();
+        input.value = '';
         prepareQuery = false;
+        syncClear();
     };
-    let pointerSelect = false;
-    input.addEventListener('pointerdown', () => { pointerSelect = prepareQuery && !!root.dataset.selectedPhotoId; });
-    input.addEventListener('focus', selectQuery);
-    // A subsequent click also handles results selected while the field retained focus.
-    input.addEventListener('click', () => {
-        if (pointerSelect) { input.select(); pointerSelect = false; prepareQuery = false; }
-        else selectQuery();
-    });
+    input.addEventListener('focus', prepareSearch);
+    // Selection can leave the input focused; the next click still starts a fresh query.
+    input.addEventListener('click', prepareSearch);
     const remember = id => {
         const update = url => {
             if (id) url.searchParams.set('selected_photo', id);
@@ -52,9 +48,11 @@
     };
     clear.addEventListener('click', clearSelection);
     const inspectorInstance = window.IOAPhotoInspector.create(inspector, {
+        view: 'search',
         onLoad(photo) {
             root.selectedPhoto = photo;
-            input.value = photo.title || `Photo ${photo.id}`;
+            // Do not restore selected text if the user already prepared a new query.
+            if (prepareQuery) input.value = photo.title || String(photo.id);
             status.textContent = '';
             syncClear();
         },
@@ -84,7 +82,7 @@
         cancel();
         root.selectedPhoto = photo;
         root.dataset.selectedPhotoId = photo.id;
-        input.value = photo.title || `Photo ${photo.id}`;
+        input.value = photo.title || String(photo.id);
         status.textContent = `Selected: ${input.value} · Photo ${photo.id}`;
         close();
         loadInspector(photo.id);

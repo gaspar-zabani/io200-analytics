@@ -33,33 +33,46 @@
         ['basket', 'Basket actions', m.basket_adds + m.basket_removes,
             [m.basket_adds ? count(m.basket_adds, 'add') : '', m.basket_removes ? count(m.basket_removes, 'remove') : ''].filter(Boolean).join(' · ')]
     ];
-    const renderMetrics = (inspector, photo) => {
+    const addSearchDetail = (value, label, total, description) => {
+        if (!description) return;
+        value.classList.add('photo-search-metric-detail');
+        value.tabIndex = 0;
+        value.addEventListener('click', () => value.focus());
+        value.title = description.split(' · ').join('\n');
+        value.setAttribute('aria-label', `${label}: ${total.toLocaleString()}; ${description}`);
+    };
+    const renderMetrics = (inspector, photo, reservePositions = true) => {
         const summary = element('dl', undefined, 'photo-inspector-metrics');
         metricData(photo.metrics).forEach(([icon, label, total, description], index) => {
-            if (!total) return;
+            if (!total && reservePositions) return;
             const group = element('div', undefined, 'photo-inspector-metric');
-            group.style.gridColumn = String(index + 1);
+            if (reservePositions) group.style.gridColumn = String(index + 1);
             group.title = label;
             const heading = element('dt', undefined, 'visit-summary__metric');
             const svg = inspectorIcon(icon);
             if (svg) heading.append(svg);
             heading.append(element('span', label, 'visit-summary__accessible'));
             const detail = element('dd');
-            detail.append(element('span', total.toLocaleString(), 'ranking-primary'));
-            if (description) detail.append(element('span', description, 'photo-item__meta'));
+            const primary = element('span', undefined, 'ranking-primary');
+            if (!reservePositions) addSearchDetail(primary, label, total, description);
+            if (reservePositions) primary.textContent = total.toLocaleString();
+            else if (total) primary.append(element('span', total.toLocaleString()));
+            detail.append(primary);
+            if (description && reservePositions) detail.append(element('span', description, 'photo-item__meta'));
             group.append(heading, detail);
             summary.append(group);
         });
         inspector.append(summary);
     };
-    const renderActivity = (inspector, photo) => {
+    const renderActivity = (inspector, photo, search = false) => {
         if (!photo.activity.length) return;
         inspector.append(element('h3', 'Activity location'));
         const types = ['views', 'direct_downloads', 'selection_downloads', 'basket_adds', 'basket_removes'];
-        const showCounts = photo.activity.length > 1 || types.filter(key => photo.metrics[key] > 0).length > 1;
-        const columns = [0, 1, 2].filter(i => photo.activity.some(context => metricData(context.metrics)[i][2] > 0));
+        const showCounts = search || photo.activity.length > 1 || types.filter(key => photo.metrics[key] > 0).length > 1;
+        const columns = [0, 1, 2].filter(i => search || photo.activity.some(context => metricData(context.metrics)[i][2] > 0));
         const grid = element('div', undefined, 'photo-inspector-locations');
-        grid.style.gridTemplateColumns = `minmax(0, 1.4fr)${showCounts ? ' minmax(0, 1fr)'.repeat(columns.length) : ''}`;
+        if (!search) grid.style.gridTemplateColumns = `minmax(0, 1.4fr)${showCounts ? ' minmax(0, 1fr)'.repeat(columns.length) : ''}`;
+        if (search) grid.classList.add('photo-search-locations');
         photo.activity.forEach(context => {
             const name = element('span', context.title, 'photo-inspector-location-name');
             if (context.album_id !== null) name.dataset.albumId = context.album_id;
@@ -73,10 +86,13 @@
                     cell.title = label;
                     const value = element('span', undefined, 'visit-summary__metric');
                     const svg = inspectorIcon(icon);
-                    if (svg) value.append(svg);
+                    if (svg && !search) value.append(svg);
                     value.append(element('span', total.toLocaleString()), element('span', label, 'visit-summary__accessible'));
                     cell.append(value);
-                    if (description) cell.append(element('small', description));
+                    if (description) {
+                        if (search) addSearchDetail(value, label, total, description);
+                        else cell.append(element('small', description));
+                    }
                 }
                 grid.append(cell);
             });
@@ -99,6 +115,33 @@
         identity.append(preview, name);
         if (action) identity.append(action());
         inspector.append(identity);
+    };
+    const renderSearchResult = (inspector, photo) => {
+        inspector.replaceChildren();
+        const composition = element('section', undefined, 'photo-search-composition');
+        composition.setAttribute('aria-label', 'Photo activity in selected period');
+        const activeMetrics = metricData(photo.metrics).filter(([, , total]) => total > 0);
+        composition.style.setProperty('--photo-metric-tracks', 'repeat(3, minmax(0, 100px))');
+        composition.append(element('span', document.body.dataset.inspectorPeriod || 'Selected period', 'photo-inspector-period photo-search-period'));
+        renderIdentity(composition, photo, null);
+        renderMetrics(composition, photo, false);
+        if (activeMetrics.length) {
+            renderActivity(composition, photo, true);
+        } else {
+            composition.append(element('p', 'No activity in this period', 'photo-search-no-activity'));
+        }
+        inspector.append(composition);
+        if (photo.albums.length) {
+            const membership = element('p', undefined, 'photo-search-membership');
+            membership.append(element('span', 'Belongs to', 'photo-search-membership-label'));
+            photo.albums.forEach((album, index) => {
+                if (index) membership.append(document.createTextNode(' · '));
+                const name = element('span', album.title);
+                name.dataset.albumId = album.id;
+                membership.append(name);
+            });
+            inspector.append(membership);
+        }
     };
     const renderInspector = (inspector, photo, action, visit = null) => {
         inspector.replaceChildren();
@@ -225,6 +268,8 @@
                     if (view === 'visit') {
                         const {id, title, image_url} = payload.photo;
                         renderVisitPopover(inspector, {id, title, image_url}, payload.this_visit);
+                    } else if (view === 'search') {
+                        renderSearchResult(inspector, payload.photo);
                     } else {
                         renderInspector(inspector, payload.photo, action, visitId !== null ? payload.this_visit : null);
                     }

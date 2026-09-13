@@ -2175,7 +2175,7 @@ try {
             color: inherit;
         }
 
-        .photo-search { grid-column: span 2; padding: 24px; min-width: 0; }
+        .photo-search { grid-column: span 2; align-self: start; padding: 24px; min-width: 0; }
         .photo-search label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; }
         .photo-search p { color: #74777c; font-size: 13px; }
         .photo-search-field { position: relative; }
@@ -2240,9 +2240,36 @@ try {
         .photo-inspector-location-value .visit-summary__metric { white-space: normal; }
         .photo-inspector-membership { display: flex; flex-wrap: wrap; gap: 5px; }
         .photo-inspector-album { padding: 3px 7px; border-radius: 5px; background: #f0f1f2; color: #73777d; font-size: 12px; overflow-wrap: anywhere; }
-        @container (min-width: 600px) {
-            .photo-inspector--inline .photo-inspector-scope { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 24px; }
+        .photo-search-composition { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(90px, 130px) var(--photo-metric-tracks); gap: 12px 20px; align-items: start; }
+        .photo-search-period { grid-column: 2 / -1; justify-self: end; font-size: 12px; }
+        .photo-search .photo-inspector-identity { grid-column: 1 / 3; grid-row: 2; min-width: 0; gap: 16px; margin-bottom: 0; align-self: center; }
+        .photo-search .photo-inspector-preview { flex-basis: 112px; height: 78px; border-radius: 8px; }
+        .photo-search .photo-inspector-identity strong { font-size: 20px; }
+        .photo-search .photo-inspector-metrics { display: grid; grid-template-columns: subgrid; grid-column: 3 / -1; grid-row: 2; column-gap: inherit; row-gap: 6px; margin: 0; min-width: 0; align-self: center; }
+        .photo-search .photo-inspector-metric { display: grid; grid-template-rows: subgrid; grid-row: span 2; row-gap: 6px; }
+        .photo-search .photo-inspector-metric dt { justify-self: end; padding: 0; }
+        .photo-search .photo-inspector-metric dd { grid-template-columns: minmax(0, 1fr); text-align: right; }
+        .photo-search .photo-inspector-metrics .ranking-primary { justify-content: flex-end; font-size: 26px; font-weight: 750; line-height: 1.3; }
+        .photo-search-metric-detail { position: relative; cursor: default; }
+        .photo-search-metric-detail:focus-visible { outline: 2px solid #555; outline-offset: 3px; border-radius: 2px; }
+        .photo-search-metric-detail:is(:hover, :focus)::after { content: attr(title); position: absolute; z-index: 10; right: 0; top: calc(100% + 6px); padding: 6px 8px; border: 1px solid #e1e1e1; border-radius: 4px; background: white; color: #41464c; box-shadow: 0 2px 8px #0001; font-size: 12px; font-weight: 400; line-height: 1.5; white-space: pre; text-align: left; }
+
+        .photo-search-composition > h3 { grid-column: 2; justify-self: end; text-align: right; white-space: nowrap; margin: 8px 0 0; }
+        .photo-search .photo-search-locations { display: grid; grid-template-columns: subgrid; grid-column: 2 / -1; column-gap: inherit; row-gap: 12px; }
+        .photo-search-locations .photo-inspector-location-name { text-align: right; }
+        .photo-search-locations .photo-inspector-location-value small { margin-top: 2px; }
+        .photo-search-no-activity { grid-column: 2 / -1; }
+        @container (max-width: 599px) {
+            .photo-search-composition { grid-template-columns: minmax(70px, 1fr) var(--photo-metric-tracks); column-gap: 12px; }
+            .photo-search-period { grid-column: 1 / -1; }
+            .photo-search .photo-inspector-identity { grid-column: 1 / -1; }
+            .photo-search .photo-inspector-metrics { grid-column: 2 / -1; grid-row: 3; }
+            .photo-search-composition > h3 { grid-column: 1; }
+            .photo-search .photo-search-locations { grid-column: 1 / -1; }
+            .photo-search-no-activity { grid-column: 1 / -1; }
         }
+        .photo-search .photo-search-membership { margin: 18px 0 0; padding-top: 12px; border-top: 1px solid #f0f0f1; font-size: 12px; line-height: 1.6; }
+        .photo-search-membership-label { margin-right: 10px; }
         @media (min-width: 850px) {
             .photo-inspector-modal:has(.photo-inspector-scopes--visit) { width: min(960px, calc(100% - 64px)); }
             .photo-inspector-scopes--visit { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 32px; }
