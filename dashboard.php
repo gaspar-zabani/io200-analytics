@@ -688,9 +688,11 @@ try {
     // Resolve after all existing Visit image data is collected, skipping missing URLs.
     foreach ($recentVisits as &$visit) {
         $visit['hero_image'] = null;
+        $visit['hero_photo_id'] = null;
         foreach ($visit['hero_candidates'] as $photoId) {
             if (isset($visitImages[$photoId])) {
                 $visit['hero_image'] = $visitImages[$photoId];
+                $visit['hero_photo_id'] = $photoId;
                 break;
             }
         }
@@ -1927,6 +1929,10 @@ try {
             overflow-wrap: anywhere;
         }
 
+        .photo-shortcut { display: inline-flex; padding: 0; border: 0; background: transparent; cursor: pointer; border-radius: 5px; flex-shrink: 0; }
+        .photo-shortcut:hover { opacity: .85; }
+        .photo-shortcut:focus-visible { outline: 2px solid #555; outline-offset: 3px; }
+        .hero-card__media .photo-shortcut { width: 100%; height: 100%; }
         .thumbnail-link {
             display: block;
 
@@ -2139,7 +2145,7 @@ try {
                 min-height: 110px;
             }
 
-            .visit-summary > .photo-item__thumbnail {
+            .visit-summary > .photo-item__thumbnail, .visit-summary > .photo-shortcut {
                 align-self: start;
             }
 
@@ -2439,12 +2445,14 @@ try {
 
             <div class="hero-card__media">
                 <?php if ($latestViewedPhoto && !empty($latestViewedPhoto['image_url'])): ?>
+                    <?php if ((int)$latestViewedPhoto['photo_id'] > 0): ?><button type="button" class="photo-shortcut" data-find-photo data-photo-id="<?= h($latestViewedPhoto['photo_id']) ?>" data-photo-title="<?= h($latestViewedPhoto['title'] ?? '') ?>" aria-label="<?= h('Find photo: ' . ($latestViewedPhoto['title'] ?: 'Photo ' . $latestViewedPhoto['photo_id'])) ?>"><?php endif; ?>
                     <img
                         class="hero-card__image"
                         src="<?= h($latestViewedPhoto['image_url']) ?>"
                         alt=""
                         loading="lazy"
                     >
+                <?php if ((int)$latestViewedPhoto['photo_id'] > 0): ?></button><?php endif; ?>
                 <?php endif; ?>
             </div>
 
@@ -2781,7 +2789,9 @@ try {
                             <<?= $visitTag ?> class="visit-item">
                                 <<?= $headerTag ?> class="visit-summary"<?= $isExpandable ? ' data-disclosure-label="' . h(ioa_translate('visit_details') === 'visit_details' ? 'Details' : ioa_translate('visit_details')) . '"' : '' ?>>
                                     <?php if ($visit['hero_image'] !== null): ?>
+                                        <?php if (!$isExpandable): ?><button type="button" class="photo-shortcut" data-visit-ranking-inspector data-photo-id="<?= h($visit['hero_photo_id']) ?>" data-visit-id="<?= (int)$visit['visit_id'] ?>" aria-haspopup="dialog" aria-label="<?= h('Open Full Inspector for Photo ' . $visit['hero_photo_id'] . ' in this Visit') ?>"><?php endif; ?>
                                         <img class="photo-item__thumbnail" src="<?= h($visit['hero_image']) ?>" alt="" loading="lazy">
+                                        <?php if (!$isExpandable): ?></button><?php endif; ?>
                                     <?php else: ?>
                                         <span class="photo-item__thumbnail" aria-hidden="true"></span>
                                     <?php endif; ?>
@@ -3007,7 +3017,7 @@ try {
     </div>
 </div>
 <script src="assets/photo-inspector.js?v=<?= h(substr(hash_file('sha256', __DIR__ . '/assets/photo-inspector.js'), 0, 12)) ?>" defer></script>
-<script src="assets/photo-search.js" defer></script>
+<script src="assets/photo-search.js?v=<?= h(substr(hash_file('sha256', __DIR__ . '/assets/photo-search.js'), 0, 12)) ?>" defer></script>
 <script src="assets/photo-inspector-modal.js?v=<?= h(substr(hash_file('sha256', __DIR__ . '/assets/photo-inspector-modal.js'), 0, 12)) ?>" defer></script>
 <script src="assets/visit-photo-popover.js" defer></script>
 <script src="assets/visit-photo-gallery.js" defer></script>

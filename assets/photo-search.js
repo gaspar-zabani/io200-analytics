@@ -76,8 +76,7 @@
         controller?.abort();
         generation++;
     };
-    const select = index => {
-        const photo = results[index];
+    const selectPhoto = photo => {
         if (!photo) return;
         cancel();
         root.selectedPhoto = photo;
@@ -87,6 +86,17 @@
         close();
         loadInspector(photo.id);
     };
+    const select = index => selectPhoto(results[index]);
+    document.addEventListener('click', event => {
+        const trigger = event.target instanceof Element ? event.target.closest('[data-find-photo]') : null;
+        if (!trigger || !/^[1-9]\d*$/.test(trigger.dataset.photoId)) return;
+        selectPhoto({id: trigger.dataset.photoId, title: trigger.dataset.photoTitle || null});
+        // Focus the result region without clearing the selected query via input focus.
+        inspector.tabIndex = -1;
+        inspector.focus({preventScroll: true});
+        const rect = inspector.getBoundingClientRect();
+        if (rect.top < 0 || rect.bottom > innerHeight) inspector.scrollIntoView({block: 'nearest'});
+    });
     const highlight = index => {
         active = index;
         Array.from(list.children).forEach((item, i) => item.setAttribute('aria-selected', String(i === active)));

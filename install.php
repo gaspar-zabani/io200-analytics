@@ -5,6 +5,7 @@ session_start();
 require_once __DIR__ . '/../../system/config.php';
 require_once __DIR__ . '/../../../admin/sys/Autoload.php';
 require_once __DIR__ . '/localization.php';
+$installedVersion = require __DIR__ . '/version.php';
 
 header('Cache-Control: no-store, no-cache, must-revalidate');
 header('Pragma: no-cache');
@@ -561,7 +562,8 @@ if ($authenticated) {
         .snippet-box code {
             min-width: 0;
             margin: 0;
-            white-space: pre;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
         }
 
         .snippet-copy {
@@ -736,9 +738,9 @@ if ($authenticated) {
                             <a class="button secondary" href="/admin">Open IO200 Admin</a>
                         </div>
                     </div>
-                    <p class="hint">For a first installation, add the tracking script in IO200 Settings → Code Injection. When updating, keep that script and change its version query string to the release you uploaded, as described in README.md.</p>
+                    <p class="hint">For a first installation, copy the tracking snippet below into IO200 Settings → Code Injection. When updating from an older version, replace the existing IO200 Analytics tracking snippet with this newly shown snippet.</p>
                     <div class="snippet-box">
-                        <code id="injection-snippet">&lt;script src="/storage/custom/io200-analytics/analytics.js?v=1.0.0"&gt;&lt;/script&gt;</code>
+                        <code id="injection-snippet">&lt;script src="/storage/custom/io200-analytics/analytics.js?v=<?= htmlspecialchars(rawurlencode($installedVersion), ENT_QUOTES, 'UTF-8') ?>"&gt;&lt;/script&gt;</code>
                         <button type="button" class="snippet-copy" id="copy-snippet" aria-label="Copy Code Injection script" hidden>Copy</button>
                     </div>
                     <span id="snippet-copy-status" class="snippet-copy-status" role="status"></span>
