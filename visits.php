@@ -31,15 +31,18 @@ function ioaSegmentVisits(iterable $rows): Generator
 {
     $visit = null;
     $previousTimestamp = null;
+    $episodeOrdinal = 0;
     foreach ($rows as $row) {
         $sessionId = (string)$row['session_id'];
         $timestamp = is_string($row['created_at']) ? strtotime($row['created_at']) : false;
         if ($visit === null || $sessionId !== $visit['session_id']
             || $timestamp === false || $previousTimestamp === null
             || ($timestamp - $previousTimestamp) > VISIT_INACTIVITY_SECONDS) {
+            $episodeOrdinal = $visit !== null && $sessionId === $visit['session_id']
+                ? $episodeOrdinal + 1 : 1;
             if ($visit !== null) yield $visit;
             $visit = ['session_id' => $sessionId, 'visit_id' => (int)$row['id'],
-                'first_activity' => $row['created_at'], 'events' => []];
+                'first_activity' => $row['created_at'], 'is_revisit' => $episodeOrdinal > 1, 'events' => []];
         }
         $visit['last_event_id'] = (int)$row['id'];
         $visit['latest_activity'] = $row['created_at'];

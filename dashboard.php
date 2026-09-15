@@ -496,6 +496,10 @@ try {
     }
 
     $recentVisits = [];
+    $sessionEpisodes = [];
+    $selectedSessionVisits = [];
+    $selectedSessionFound = false;
+    $sessionVisitId = filter_input(INPUT_GET, 'session_visit', FILTER_VALIDATE_INT) ?: 0;
 
     if ($candidateSessionIds) {
         $escapedSessionIds = array_map(
@@ -576,12 +580,34 @@ try {
                     isset($qualifyingEventIds[(string)$row['id']]);
                 $currentVisit['events'][] = $event;
             }
+            if ($sessionVisitId > 0) {
+                if ($sessionEpisodes && $sessionEpisodes[0]['session_id'] !== $currentVisit['session_id']) {
+                    if ($selectedSessionFound) $selectedSessionVisits = $sessionEpisodes;
+                    $sessionEpisodes = [];
+                    $selectedSessionFound = false;
+                }
+                $sessionEpisodes[] = $currentVisit;
+                if ($currentVisit['visit_id'] === $sessionVisitId) $selectedSessionFound = true;
+            }
             if ($currentVisit['qualifies_for_period']) {
                 unset($currentVisit['qualifies_for_period']);
                 $recentVisits[] = $currentVisit;
             }
         }
     }
+
+    if ($selectedSessionFound) $selectedSessionVisits = $sessionEpisodes;
+    $sessionMode = count($selectedSessionVisits) > 0;
+    $periodVisitCount = count($recentVisits);
+    if ($sessionMode) $recentVisits = $selectedSessionVisits;
+    unset($sessionEpisodes, $selectedSessionVisits);
+    $sessionUrl = static function ($visitId = null) {
+        $query = $_GET;
+        unset($query['session_visit'], $query['photo_inspector'], $query['photo_search'], $query['visit']);
+        $query['photo_tab'] = 'visits';
+        if ($visitId !== null) $query['session_visit'] = $visitId;
+        return '?' . http_build_query($query) . '#photo-panel-visits';
+    };
 
     foreach ($recentVisits as &$visit) {
         $visit['basket_actions'] = $visit['basket_adds'] + $visit['basket_removes'];
@@ -605,9 +631,9 @@ try {
         return $b['last_event_id'] <=> $a['last_event_id'];
     });
 
-    $visitSummary['visits'] = count($recentVisits);
+    $visitSummary['visits'] = $periodVisitCount;
 
-    $recentVisits = array_slice($recentVisits, 0, 20);
+    if (!$sessionMode) $recentVisits = array_slice($recentVisits, 0, 20);
 
     $visitPhotoIds = [];
     $visitImages = [];
@@ -1494,10 +1520,6 @@ try {
             box-shadow: 0 -2px 8px rgba(0, 0, 0, .04);
         }
 
-        .photo-tab:focus-visible {
-            outline: 2px solid #4b76d1;
-            outline-offset: 2px;
-        }
 
         .photo-tab__title {
             margin: 0;
@@ -1530,7 +1552,6 @@ try {
 
         button.global-ranking-inspector { width: 100%; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
         .global-ranking-inspector .photo-item__id { display: block; }
-        button.global-ranking-inspector:focus-visible { outline: 2px solid #555; outline-offset: 3px; }
 
         .photo-item--featured {
             gap: 16px;
@@ -1634,7 +1655,6 @@ try {
         .visit-highlight-group h3 { margin: 4px 0 12px; font-size: 13px; color: #4f5358; }
         .visit-highlight-photo { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
         button.visit-highlight-photo { width: 100%; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
-        button.visit-highlight-photo:focus-visible { outline: 2px solid #555; outline-offset: 3px; }
         .visit-highlight-image { width: 56px; height: 56px; flex: 0 0 56px; object-fit: cover; border-radius: 5px; background: #f0f1f2; }
         .visit-image-placeholder { display: grid; place-items: center; color: #85888d; }
         .visit-highlight-caption { min-width: 0; }
@@ -1692,11 +1712,6 @@ try {
             content: attr(data-disclosure-label) ' ▴';
         }
 
-        .visit-summary:focus-visible {
-            outline: 2px solid currentColor;
-            outline-offset: -2px;
-            border-radius: 6px;
-        }
 
         .visit-summary__content {
             display: grid;
@@ -1727,6 +1742,17 @@ try {
             margin-left: auto;
             white-space: nowrap;
         }
+
+        .visit-session-metadata { cursor: default; }
+        .visit-session-control { display: inline-flex; align-items: center; gap: 4px; color: inherit; text-decoration: none; }
+        .visit-session-control:hover { color: #444; }
+        .visit-item.session-preview-dim > * { opacity: .18; }
+        .visit-list:has(.session-preview-dim) > .visit-item:not(.session-preview-dim),
+        .visit-list:has(.visit-session-control:is(:hover, :focus)) > .visit-item:not(.session-preview-dim) { background: #fff; box-shadow: 0 3px 12px #00000009; position: relative; z-index: 1; }
+        .session-mode-header { flex-wrap: wrap; align-items: center; }
+        .session-mode-actions { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-left: auto; }
+        .session-show-all { padding: 7px 10px; border: 1px solid #dedfe2; border-radius: 5px; background: #fafafa; color: #555b62; font: inherit; cursor: pointer; }
+        .session-show-all:hover { background: #f0f1f2; }
 
         .visit-summary__controls {
             display: contents;
@@ -1931,7 +1957,6 @@ try {
 
         .photo-shortcut { display: inline-flex; padding: 0; border: 0; background: transparent; cursor: pointer; border-radius: 5px; flex-shrink: 0; }
         .photo-shortcut:hover { opacity: .85; }
-        .photo-shortcut:focus-visible { outline: 2px solid #555; outline-offset: 3px; }
         .hero-card__media .photo-shortcut { width: 100%; height: 100%; }
         .thumbnail-link {
             display: block;
@@ -2215,7 +2240,6 @@ try {
         .photo-search p { color: #74777c; font-size: 13px; }
         .photo-search-field { position: relative; }
         .photo-search input { box-sizing: border-box; width: 100%; min-width: 0; padding: 14px; border: 1px solid #c9cbd0; border-radius: 8px; font: inherit; font-size: 16px; }
-        .photo-search input:focus-visible { outline: 2px solid #555; outline-offset: 2px; }
         .photo-search ul { position: absolute; z-index: 20; top: 100%; left: 0; right: 0; margin: 6px 0 0; padding: 4px; list-style: none; background: white; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 8px 24px #0002; max-height: min(360px, 55vh); overflow-y: auto; }
         .photo-search li { display: flex; align-items: center; gap: 10px; padding: 8px; cursor: pointer; border-radius: 5px; }
         .photo-search li:hover, .photo-search li[aria-selected="true"] { background: #edf0f3; }
@@ -2255,12 +2279,10 @@ try {
         .photo-inspector--detail .photo-inspector-context { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
         .photo-inspector--detail .photo-inspector-context strong { font-size: 13px; font-weight: 500; }
         .photo-inspector--detail .photo-inspector-context small { margin: 0; font-size: 12px; }
-        .photo-inspector--detail button:focus-visible { outline: 2px solid #555; outline-offset: 2px; }
         .photo-search { container-type: inline-size; }
         .photo-search input { padding-right: 52px; }
         .photo-search input::-webkit-search-cancel-button { -webkit-appearance: none; }
         .photo-search-clear { position: absolute; right: 2px; top: 2px; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: #74777c; font: inherit; font-size: 22px; cursor: pointer; }
-        .photo-search-clear:focus-visible { outline: 2px solid #555; outline-offset: 2px; }
         .photo-inspector-scopes, .photo-inspector-scope { display: grid; gap: 16px; min-width: 0; }
         .photo-inspector-primary, .photo-inspector-details { min-width: 0; }
         .photo-inspector--detail .photo-inspector-scope-title { margin: 0; }
@@ -2289,7 +2311,6 @@ try {
         .photo-search .photo-inspector-metric dd { grid-template-columns: minmax(0, 1fr); text-align: right; }
         .photo-search .photo-inspector-metrics .ranking-primary { justify-content: flex-end; font-size: 26px; font-weight: 750; line-height: 1.3; }
         .photo-search-metric-detail { position: relative; cursor: default; }
-        .photo-search-metric-detail:focus-visible { outline: 2px solid #555; outline-offset: 3px; border-radius: 2px; }
         .photo-search-metric-detail:is(:hover, :focus)::after { content: attr(title); position: absolute; z-index: 10; right: 0; top: calc(100% + 6px); padding: 6px 8px; border: 1px solid #e1e1e1; border-radius: 4px; background: white; color: #41464c; box-shadow: 0 2px 8px #0001; font-size: 12px; font-weight: 400; line-height: 1.5; white-space: pre; text-align: left; }
 
         .photo-search .photo-search-locations { display: grid; grid-template-columns: subgrid; grid-column: 2 / -1; column-gap: inherit; row-gap: 12px; }
@@ -2329,13 +2350,11 @@ try {
             .photo-inspector-visit-time .photo-inspector-time-compact { white-space: nowrap; }
         }
         .visit-photo-trigger { display: inline-flex; padding: 0; border: 0; border-radius: 4px; background: transparent; cursor: pointer; }
-        .visit-photo-trigger:focus-visible { outline: 2px solid #555; outline-offset: 3px; }
         .visit-photo-gallery { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
         .visit-photo-gallery .visit-photo-trigger { width: 76px; height: 76px; max-width: 100%; display: grid; place-items: center; overflow: hidden; background: #f0f1f2; color: #74777c; }
         .visit-photo-gallery img { display: block; width: 100%; height: 100%; object-fit: cover; }
         .visit-gallery-more { flex: 0 0 76px; height: 76px; max-width: 100%; padding: 0; border: 1px solid #e6e7e9; border-radius: 4px; background: #fafafa; color: #666; font: inherit; font-size: 15px; cursor: pointer; }
         .visit-gallery-more:hover { text-decoration: underline; }
-        .visit-gallery-more:focus-visible { outline: 2px solid #555; outline-offset: 3px; }
         .visit-photo-popover { position: fixed; z-index: 1000; box-sizing: border-box; width: 320px; padding: 0; border: 1px solid #e1e1e1; border-radius: 12px; background: white; color: #333; box-shadow: 0 6px 24px #0002; overflow: visible; }
         .visit-photo-popover-surface { position: relative; padding: 16px; border-radius: inherit; background: white; max-height: calc(var(--popover-max-height, 80vh) - 2px); box-sizing: border-box; overflow: auto; }
         .visit-photo-popover::before { content: ''; position: absolute; width: 10px; height: 10px; background: white; border: solid #e1e1e1; border-width: 0; transform: rotate(45deg); pointer-events: none; }
@@ -2348,12 +2367,10 @@ try {
         .visit-popover-metrics .photo-search-metric-detail::after { right: auto; left: 0; max-width: 160px; white-space: normal; width: max-content; }
         .dashboard-home { color: inherit; text-decoration: none; }
         .dashboard-home:hover { opacity: .75; }
-        .dashboard-home:focus-visible { outline: 2px solid #555; outline-offset: 4px; border-radius: 2px; }
         .visit-popover-metric-value { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
         .visit-popover-metrics svg { color: #85888d; width: 16px; height: 16px; flex: 0 0 16px; }
         .visit-photo-popover .visit-popover-context { color: #85888d; margin-top: 10px; }
         .visit-photo-popover .visit-popover-time { color: #85888d; font-size: 12px; font-variant-numeric: tabular-nums; }
-        .visit-photo-popover:focus-visible { outline: 2px solid #777; outline-offset: 2px; }
         .visit-photo-popover .photo-inspector-identity { padding-right: 24px; }
         .visit-photo-popover .photo-inspector-preview { flex-basis: 44px; height: 44px; }
         .visit-photo-popover-close, .visit-photo-popover-full { border: 0; background: transparent; color: #555; cursor: pointer; font: inherit; padding: 6px; }
@@ -2365,8 +2382,25 @@ try {
         .photo-inspector-modal-close { position: absolute; right: 12px; top: 12px; font-size: 24px; line-height: 1; }
         .photo-inspector-modal-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
         @media (max-width: 850px) { .photo-search { grid-column: 1 / -1; padding: 18px; } }
+        /* Discrete controls get keyboard rings; navigation containers retain focus silently. */
+        :where(a[href], button, input, select, textarea, summary, [role="button"], [role="link"], [role="tab"], .photo-search-metric-detail):focus {
+            outline: 2px solid #747b83;
+            outline-offset: 2px;
+        }
+        @supports selector(:focus-visible) {
+            :where(a[href], button, input, select, textarea, summary, [tabindex]):focus:not(:focus-visible) { outline: none; }
+        }
+        html[data-ioa-input="keyboard"] :where(a[href], button, input, select, textarea, summary, [role="button"], [role="link"], [role="tab"], .photo-search-metric-detail):focus {
+            outline: 2px solid #747b83;
+            outline-offset: 2px;
+        }
+        html[data-ioa-input="pointer"] :where(a[href], button, input, select, textarea, summary, [tabindex]):focus { outline: none; }
+        html [tabindex]:not(:is(a[href], button, input, select, textarea, summary, [role="button"], [role="link"], [role="tab"], .photo-search-metric-detail)):focus { outline: none; }
+        html :is(.photo-inspector-modal, .photo-search input):focus { outline: none; }
+        html summary:focus, html[data-ioa-input] summary:focus { outline-offset: -2px; }
     </style>
 
+<script src="assets/dashboard-focus.js" defer></script>
 </head>
 
 <body data-inspector-period="<?= h($allowedPeriods[$period]) ?>" data-inspector-today="<?= h((new DateTimeImmutable('today'))->format('Y-m-d')) ?>">
@@ -2767,10 +2801,10 @@ try {
                 <?= $photoTab === 'visits' ? '' : 'hidden' ?>
                 data-photo-panel="visits"
             >
-                <div class="panel-header">
-                    <h2><?= ioa_t('latest_visits') ?></h2>
-                    <span class="panel-hint">
-                        <?= ioa_t('latest_20') ?> · <?= h($allowedPeriods[$period]) ?>
+                <div class="panel-header<?= $sessionMode ? ' session-mode-header' : '' ?>">
+                    <h2><?= $sessionMode ? count($recentVisits) . (count($recentVisits) === 1 ? ' Session visit' : ' Session visits') : ioa_t('latest_visits') ?></h2>
+                    <span class="panel-hint<?= $sessionMode ? ' session-mode-actions' : '' ?>">
+                        <?php if ($sessionMode): ?><button type="button" class="session-show-all" data-session-clear-url="<?= h($sessionUrl()) ?>">Show all visits</button><?php else: ?><?= ioa_t('latest_20') ?> · <?= h($allowedPeriods[$period]) ?><?php endif; ?>
                     </span>
                 </div>
 
@@ -2786,7 +2820,7 @@ try {
                             $visitTag = $isExpandable ? 'details' : 'div';
                             $headerTag = $isExpandable ? 'summary' : 'div';
                             ?>
-                            <<?= $visitTag ?> class="visit-item">
+                            <<?= $visitTag ?> class="visit-item" data-visit-session="<?= h(hash('sha256', $visit['session_id'])) ?>">
                                 <<?= $headerTag ?> class="visit-summary"<?= $isExpandable ? ' data-disclosure-label="' . h(ioa_translate('visit_details') === 'visit_details' ? 'Details' : ioa_translate('visit_details')) . '"' : '' ?>>
                                     <?php if ($visit['hero_image'] !== null): ?>
                                         <?php if (!$isExpandable): ?><button type="button" class="photo-shortcut" data-visit-ranking-inspector data-photo-id="<?= h($visit['hero_photo_id']) ?>" data-visit-id="<?= (int)$visit['visit_id'] ?>" aria-haspopup="dialog" aria-label="<?= h('Open Full Inspector for Photo ' . $visit['hero_photo_id'] . ' in this Visit') ?>"><?php endif; ?>
@@ -2839,10 +2873,13 @@ try {
                                             <?php endif; ?>
                                         </span>
                                         <span class="visit-summary__controls">
-                                            <span class="visit-summary__id">
+                                            <span class="visit-summary__id<?= $sessionMode ? ' visit-session-metadata' : '' ?>">
+                                                <?php if (!$sessionMode): ?><a class="visit-session-control" data-visit-session-control href="<?= h($sessionUrl($visit['visit_id'])) ?>" aria-label="Show visits from this session"><?php endif; ?>
                                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4-6 1.5 0 2 1.5 2 3 0 2.73-1 5-1 7v4H4ZM20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4-6-1.5 0-2 1.5-2 3 0 2.73 1 5 1 7v4h4ZM4 20a2 2 0 0 0 4 0v-1H4v1ZM16 22h4a2 2 0 0 1-4 0Z"/></svg>
                                                 <span class="visit-summary__accessible"><?= h(sprintf(ioa_translate('visit_id'), $visit['visit_id'])) ?></span>
                                                 <span aria-hidden="true"><?= (int)$visit['visit_id'] ?></span>
+                                                <?php if (!$sessionMode): ?></a><?php endif; ?>
+
                                             </span>
                                             <?php if ($isExpandable): ?>
                                                 <span class="visit-summary__disclosure"><?= h(ioa_translate('visit_details') === 'visit_details' ? 'Details' : ioa_translate('visit_details')) ?></span>
@@ -3017,6 +3054,7 @@ try {
     </div>
 </div>
 <script src="assets/photo-inspector.js?v=<?= h(substr(hash_file('sha256', __DIR__ . '/assets/photo-inspector.js'), 0, 12)) ?>" defer></script>
+<script src="assets/visit-session.js" defer></script>
 <script src="assets/photo-search.js?v=<?= h(substr(hash_file('sha256', __DIR__ . '/assets/photo-search.js'), 0, 12)) ?>" defer></script>
 <script src="assets/photo-inspector-modal.js?v=<?= h(substr(hash_file('sha256', __DIR__ . '/assets/photo-inspector-modal.js'), 0, 12)) ?>" defer></script>
 <script src="assets/visit-photo-popover.js" defer></script>
