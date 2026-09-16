@@ -58,7 +58,10 @@ function ioaVisitHasDetails(array $visit): bool
         }
     }
 
-    return count($photoIds) > 1 || $hasDownloadOrBasket || $visit['context_count'] > 1;
+    $photoCount = count($photoIds);
+    if ($photoCount === 1) return false;
+
+    return $photoCount > 1 || $hasDownloadOrBasket || $visit['context_count'] > 1;
 }
 
 // Input is complete admin-filtered history ordered by session_id, created_at, id.
