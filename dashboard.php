@@ -711,6 +711,31 @@ try {
     }
     unset($visit);
 
+    $visitImages = ioaEnrichVisitImages(
+        $visitPhotoIds,
+        $visitImages,
+        'safeDashboardResourceUrl',
+        static function (array $photoIds) use ($mysqli, $whereAdmin) {
+            $idList = implode(',', array_map('intval', $photoIds));
+            $result = $mysqli->query("
+                SELECT e.photo_id, e.image_url
+                FROM ioa_events AS e
+                INNER JOIN (
+                    SELECT photo_id, MAX(id) AS event_id
+                    FROM ioa_events
+                    WHERE photo_id IN ({$idList})
+                      AND image_url IS NOT NULL
+                      AND image_url <> ''
+                      {$whereAdmin}
+                    GROUP BY photo_id
+                ) AS latest_image
+                    ON latest_image.event_id = e.id
+            ");
+
+            return $result;
+        }
+    );
+
     // Resolve after all existing Visit image data is collected, skipping missing URLs.
     foreach ($recentVisits as &$visit) {
         $visit['hero_image'] = null;

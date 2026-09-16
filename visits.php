@@ -2,6 +2,42 @@
 
 const VISIT_INACTIVITY_SECONDS = 1800;
 
+// Presentation enrichment only: ask for external image data only when the
+// currently rendered Visits cannot already provide a usable thumbnail.
+function ioaEnrichVisitImages(
+    array $photoIds,
+    array $visitImages,
+    callable $safeUrl,
+    callable $lookup
+): array {
+    $unresolved = [];
+    foreach ($photoIds as $rawId) {
+        $photoId = (int)$rawId;
+        if ($photoId <= 0) continue;
+
+        $existing = $safeUrl($visitImages[$photoId] ?? null);
+        if ($existing !== null) {
+            $visitImages[$photoId] = $existing;
+            continue;
+        }
+
+        unset($visitImages[$photoId]);
+        $unresolved[$photoId] = $photoId;
+    }
+
+    if (!$unresolved) return $visitImages;
+
+    foreach ($lookup(array_values($unresolved)) as $row) {
+        $photoId = (int)($row['photo_id'] ?? 0);
+        if (!isset($unresolved[$photoId]) || isset($visitImages[$photoId])) continue;
+
+        $image = $safeUrl($row['image_url'] ?? null);
+        if ($image !== null) $visitImages[$photoId] = $image;
+    }
+
+    return $visitImages;
+}
+
 // Presentation only: use the completed episode and its existing resolved context count.
 function ioaVisitHasDetails(array $visit): bool
 {
