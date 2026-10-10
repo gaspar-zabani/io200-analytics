@@ -326,11 +326,12 @@ if (!in_array($photoTab, $allowedPhotoTabs, true)) {
     $photoTab = 'visits';
 }
 
-$includeAdmin = ($_GET['include_admin'] ?? '') === '1';
-
-$whereAdmin = $includeAdmin
-    ? ''
-    : 'AND is_admin = 0';
+require_once __DIR__ . '/activity-filter.php';
+$activity = ioaActivityMode($_GET);
+$whereAdmin = ioaActivityWhere($activity);
+// Canonicalize query state for PHP links and JavaScript endpoint navigation.
+unset($_GET['include_admin']);
+$_GET['activity'] = $activity;
 
 $whereDate = '';
 
@@ -1365,6 +1366,9 @@ try {
             display: none;
         }
 
+        .dashboard-filter-groups { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+        .activity-filter .filter { padding: 5px 9px; border: 0; border-radius: 4px; font-size: 13px; }
+        .activity-filter { display: flex; gap: 2px; padding: 3px; border: 1px solid #dedfe2; border-radius: 6px; }
         .filters {
             display: flex;
             flex-wrap: wrap;
@@ -2449,7 +2453,7 @@ try {
 
         <div>
 
-            <h1><a class="dashboard-home" href="?"><?= ioa_t('app_name') ?></a></h1>
+            <h1><a class="dashboard-home" href="?activity=<?= h($activity) ?>"><?= ioa_t('app_name') ?></a></h1>
 
             <p class="subtitle">
                 <?= ioa_t('dashboard_subtitle') ?>
@@ -2461,6 +2465,13 @@ try {
             <a class="update-notice update-notice--desktop" href="<?= h($availableUpdate['download_url']) ?>"><?= ioa_t('update_available') ?></a>
         <?php endif; ?>
 
+        <div class="dashboard-filter-groups">
+        <div class="activity-filter" role="group" aria-label="Activity">
+            <?php foreach (['visits' => 'Visits', 'all' => 'Visits + admin', 'admin' => 'Only admin'] as $mode => $label): ?>
+                <a class="filter <?= $activity === $mode ? 'active' : '' ?>" aria-current="<?= $activity === $mode ? 'true' : 'false' ?>"
+                   href="?<?= h(http_build_query(['period' => $period, 'activity' => $mode, 'photo_tab' => $photoTab])) ?>"><?= h($label) ?></a>
+            <?php endforeach; ?>
+        </div>
         <div class="filters">
 
             <?php foreach ($allowedPeriods as $value => $label): ?>
@@ -2469,7 +2480,7 @@ try {
                     class="filter <?= $period === (string)$value ? 'active' : '' ?>"
                     href="?<?= h(http_build_query([
                         'period' => $value,
-                        'include_admin' => $includeAdmin ? '1' : '0',
+                        'activity' => $activity,
                         'photo_tab' => $photoTab
                     ])) ?>"
                 >
@@ -2479,6 +2490,8 @@ try {
             <?php endforeach; ?>
 
         </div>
+
+    </div>
 
     </div>
 
@@ -2559,7 +2572,7 @@ try {
                 id="photo-tab-visits"
                 href="?<?= h(http_build_query([
                     'period' => $period,
-                    'include_admin' => $includeAdmin ? '1' : '0',
+                    'activity' => $activity,
                     'photo_tab' => 'visits'
                 ])) ?>"
                 role="tab"
@@ -2592,7 +2605,7 @@ try {
                 id="photo-tab-views"
                 href="?<?= h(http_build_query([
                     'period' => $period,
-                    'include_admin' => $includeAdmin ? '1' : '0',
+                    'activity' => $activity,
                     'photo_tab' => 'views'
                 ])) ?>"
                 role="tab"
@@ -2631,7 +2644,7 @@ try {
                 id="photo-tab-downloads"
                 href="?<?= h(http_build_query([
                     'period' => $period,
-                    'include_admin' => $includeAdmin ? '1' : '0',
+                    'activity' => $activity,
                     'photo_tab' => 'downloads'
                 ])) ?>"
                 role="tab"
@@ -3079,6 +3092,13 @@ try {
     </div>
 </div>
 <script src="assets/photo-inspector.js?v=<?= h(substr(hash_file('sha256', __DIR__ . '/assets/photo-inspector.js'), 0, 12)) ?>" defer></script>
+<script>
+    // Keep AJAX handlers on the canonical activity mode, including legacy URLs.
+    const activityUrl = new URL(window.location.href);
+    activityUrl.searchParams.delete('include_admin');
+    activityUrl.searchParams.set('activity', <?= json_encode($activity) ?>);
+    window.history.replaceState(window.history.state, '', activityUrl);
+</script>
 <script src="assets/visit-session.js" defer></script>
 <script src="assets/photo-search.js?v=<?= h(substr(hash_file('sha256', __DIR__ . '/assets/photo-search.js'), 0, 12)) ?>" defer></script>
 <script src="assets/photo-inspector-modal.js?v=<?= h(substr(hash_file('sha256', __DIR__ . '/assets/photo-inspector-modal.js'), 0, 12)) ?>" defer></script>
@@ -3108,7 +3128,7 @@ try {
                 panel.hidden = panel.dataset.photoPanel !== tabName;
             });
 
-            document.querySelectorAll('.filters a.filter').forEach(function (link) {
+            document.querySelectorAll('.filters a.filter, .activity-filter a.filter').forEach(function (link) {
                 const url = new URL(link.href);
                 url.searchParams.set('photo_tab', tabName);
                 link.href = url.href;

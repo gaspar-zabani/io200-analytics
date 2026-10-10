@@ -12,6 +12,8 @@ import zipfile
 RELEASE_FILES = (
     "analytics.js",
     "collect.php",
+    "admin-classification.php",
+    "activity-filter.php",
     "dashboard.php",
     "photo-search.php",
     "photo-inspector.php",

@@ -109,18 +109,8 @@ $sessionId = isset($data['session_id']) && is_string($data['session_id'])
     ? substr($data['session_id'], 0, 64)
     : null;
 
-$isAdmin = 0;
-
-if (array_key_exists('is_admin', $data)) {
-    if (!is_int($data['is_admin']) || !in_array($data['is_admin'], [0, 1], true)) {
-        respond(400, [
-            'ok' => false,
-            'error' => 'Invalid is_admin flag'
-        ]);
-    }
-
-    $isAdmin = $data['is_admin'];
-}
+require_once __DIR__ . '/admin-classification.php';
+$isAdmin = ioaClassifyAdmin($_COOKIE);
 
 function normalizedOrigin($url) {
     if (!is_string($url) || $url === '') return null;

@@ -65,7 +65,7 @@ Unauthenticated visitors see a compact public product, download, and installatio
 | `photo_download` | IO200 calls its single-photo download hook | Photo ID, download URL, page path, session ID |
 | `batch_download` | IO200 completes an album/batch download | Valid photo IDs and URLs in JSON, page path, session ID |
 
-Events also receive a server-side timestamp and client-supplied `is_admin` value.
+Events also receive a server-side timestamp and server-derived `is_admin` value.
 
 A Visit is a recorded activity episode. More than 30 minutes of inactivity starts a new Visit. The selected period includes Visits with at least one recorded action in that period; their full activity may extend beyond the period boundary. Visits do not represent unique people or exact time on site.
 
@@ -75,13 +75,15 @@ The public `collect.php` endpoint accepts validated events from `analytics.js` a
 
 The collector requires JSON POST requests from the origin configured in IO200's `WEBSITE_URL`. It validates `Origin`, falling back to a same-origin `Referer` only when `Origin` is absent; requests with neither header are rejected. Resource URLs must also be same-origin HTTP(S) URLs and are stored as root-relative paths without query strings or fragments. `WEBSITE_URL` must therefore match the scheme, host, and port visitors use for the site.
 
+The activity selector offers Visits (non-admin events, the default), Visits + admin (all events), and Only admin. Existing `include_admin=1` links select all events when `activity` is absent. Historical flags retain their original values.
+
 ## Privacy limitations
 
-- IOA does not intentionally collect IP addresses, user agents, names, email addresses, fingerprints, cookies, or persistent visitor IDs.
-- It does collect event types, timestamps, paths, photo IDs, image/download URLs, per-tab session IDs, batch photo data, and a client-supplied traffic flag.
+- IOA does not store IP addresses, user agents, names, email addresses, fingerprints, authentication cookies, or persistent visitor IDs. It reads the existing IO200 refresh cookie only to classify activity; it never renews authentication during collection.
+- It does collect event types, timestamps, paths, photo IDs, image/download URLs, per-tab session IDs, batch photo data, and a server-derived admin traffic flag.
 - Data remains in the site's `ioa_events` table and is not transmitted to an external analytics provider by this code.
 - IOA has no consent management, retention schedule, anonymization, or automatic expiry.
-- Browser-originated events and the admin flag cannot be independently verified by the collector.
+- Browser-originated event claims cannot be independently verified. Admin classification verifies the existing IO200 refresh credential server-side; it identifies a credential-bearing browser, not an actively open admin tab. Missing or invalid credentials do not prevent event collection.
 - Origin and Referer validation is defense-in-depth, not authentication: direct scripted clients can forge both headers. Application or web-server rate limiting remains a future hardening option.
 
 Site operators are responsible for their privacy notice and applicable legal requirements.
