@@ -1776,6 +1776,7 @@ try {
 
         .visit-list {
             display: grid;
+            grid-template-columns: minmax(0, 1fr);
         }
 
         .visit-highlights {
@@ -1793,15 +1794,43 @@ try {
         .visit-image-placeholder { display: grid; place-items: center; color: #85888d; }
         .visit-highlight-caption { min-width: 0; }
         .visit-highlight-title { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
-        .visit-journey { margin: 4px 10px 16px; }
-        .visit-journey > summary { padding: 8px 0; cursor: pointer; font-size: 13px; color: #4f5358; }
+        .visit-journey { margin: 8px 10px 16px; }
+        .visit-journey__heading { margin: 0 0 10px; font-size: 13px; font-weight: 600; color: #4f5358; }
         .visit-activity-summary .visit-context-section__title { padding: 6px 0 4px; }
-        .visit-activity-summary__item { margin: 12px 0; min-width: 0; }
+        .visit-activity-summary__item { margin: 14px 0 0; min-width: 0; }
+        .visit-journey .visit-activity-summary { margin: 0; padding: 12px 14px 14px; background: white; border: 1px solid #eceef0; border-radius: 10px; }
+        .visit-journey--trail .visit-activity-summary { position: relative; }
+        .visit-journey--trail .visit-activity-summary[data-trail-pointer]::before { content: ''; position: absolute; z-index: 1; top: -6px; left: calc(var(--trail-pointer-x) - 5px); width: 10px; height: 10px; background: white; border: solid #eceef0; border-width: 1px 0 0 1px; transform: rotate(45deg); pointer-events: none; }
+        .visit-activity-summary .visit-context-section { padding: 0; border-top: 0; }
+        .visit-activity-summary .visit-timeline__meta { font-size: 12px; color: #85888d; }
         .visit-activity-summary .selection-preview { overflow-wrap: anywhere; }
+        .activity-trail-shell { display: flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; margin-bottom: 14px; }
+        .activity-trail { display: flex; flex: 1; min-width: 0; overflow-x: auto; max-width: 100%; scrollbar-width: none; padding: 3px 0; }
+        .activity-trail::-webkit-scrollbar { display: none; }
+        .activity-trail[hidden], .activity-trail-scroll[hidden], .visit-context-section[hidden] { display: none; }
+        .activity-trail-scroll { flex: 0 0 36px; min-height: 44px; padding: 0; border: 1px solid #eceef0; border-radius: 6px; background: white; color: #626971; font: inherit; font-size: 22px; cursor: pointer; }
+        .activity-trail-scroll:hover { background: #f5f6f8; color: #202124; }
+        .activity-trail button { position: relative; flex: none; display: grid; grid-template-rows: 20px 18px 18px; gap: 6px; justify-items: center; max-width: min(220px, var(--trail-stop-width, 220px)); min-height: 44px; padding: 6px 14px; border: 0; border-radius: 4px; background: transparent; color: #626971; font: inherit; font-size: 13px; cursor: pointer; }
+        .activity-trail button::before { content: ''; position: absolute; top: 41px; left: 0; right: 0; height: 1px; background: #d7dce1; }
+        .activity-trail button:first-child::before { left: 50%; }
+        .activity-trail button:last-child::before { right: 50%; }
+        .activity-trail button::after { content: ''; position: absolute; top: 36px; left: calc(50% - 5px); width: 10px; height: 10px; border-radius: 50%; background: #afb6be; box-shadow: 0 0 0 3px white; }
+        .activity-trail button[aria-pressed="true"] { color: #202124; }
+        .activity-trail button[aria-pressed="true"]::after { top: 35px; left: calc(50% - 6px); width: 12px; height: 12px; background: #202124; box-shadow: 0 0 0 3px white, 0 0 0 4px #d7dce1; }
+        .activity-trail button[aria-pressed="true"] .activity-trail__name { font-weight: 650; text-decoration: underline; text-underline-offset: 4px; text-decoration-color: #9ca3ab; }
+        .activity-trail button[aria-pressed="true"] .activity-trail__metrics { color: #202124; font-weight: 600; }
+        .activity-trail button:hover .activity-trail__name { color: #202124; }
+        .activity-trail__name { grid-row: 1; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+        .activity-trail__metrics { grid-row: 3; display: flex; gap: 10px; font-size: 11px; color: #737b84; }
+        .activity-trail__metric { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+        .activity-trail__metric svg { width: 13px; height: 13px; flex: none; }
+        .visit-journey--trail .visit-context-section__title { display: none; }
+        .visit-journey--trail .visit-timeline { min-width: 0; }
         .selection-preview { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
         @media (max-width: 600px) { .visit-highlights { grid-template-columns: 1fr; } }
 
         .visit-item {
+            min-width: 0;
             border-bottom: 1px solid #f0f0f1;
         }
 
@@ -2016,10 +2045,6 @@ try {
 
         .visit-context-section {
             padding: 8px 0;
-        }
-
-        .visit-context-section + .visit-context-section {
-            border-top: 1px solid #dfe1e4;
         }
 
         .visit-context-section__title {
@@ -3081,59 +3106,48 @@ try {
                                 </<?= $headerTag ?>>
 
                                 <?php if ($isExpandable): ?>
-                                <div class="visit-highlights">
-                                    <?php foreach ($visit['highlights'] as $group => $photos): ?>
-                                        <section class="visit-highlight-group">
-                                            <h3 class="visit-summary__metric">
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><?= $headerMetrics[['views' => 0, 'downloads' => 1, 'basket' => 2][$group]]['icon'] ?></svg>
-                                                <?= ioa_t(['views' => 'tab_most_viewed', 'downloads' => 'tab_most_downloaded', 'basket' => 'basket_activity'][$group]) ?>
-                                            </h3>
-                                            <?php foreach ($photos as $photo): ?>
+                                <div class="visit-journey">
+                                    <h3 class="visit-journey__heading"><?= count($visit['context_sections']) > 1 ? 'Activity trail' : 'Activity' ?></h3>
+                                    <?php if (count($visit['context_sections']) > 1): ?>
+                                        <div class="activity-trail-shell" data-trail-shell>
+                                        <button class="activity-trail-scroll" type="button" data-trail-scroll="-1" aria-label="Scroll activity timeline left" title="Earlier stops" hidden><span aria-hidden="true">‹</span></button>
+                                        <div class="activity-trail" tabindex="-1" data-activity-trail role="group" aria-label="Activity trail" hidden>
+                                            <?php foreach ($visit['context_sections'] as $sectionIndex => $section): ?>
                                                 <?php
-                                                $directInspector = in_array($group, ['views', 'downloads', 'basket'], true);
-                                                $rankingTag = $directInspector ? 'button' : 'div';
-                                                $captionTag = $directInspector ? 'span' : 'div';
-                                                $rankingTitle = $photoTitles[$photo['photo_id']] ?? (ioa_translate('photo') . ' ' . $photo['photo_id']);
+                                                // Read existing grouped activity only; do not alter segment or Visit totals.
+                                                $trailCounts = ['views' => 0, 'downloads' => 0, 'basket' => 0];
+                                                foreach ($section['items'] as $trailItem) {
+                                                    if ($trailItem['type'] === 'photo_view') $trailCounts['views'] += $trailItem['actions'];
+                                                    elseif ($trailItem['type'] === 'photo_download') $trailCounts['downloads'] += $trailItem['actions'];
+                                                    elseif ($trailItem['type'] === 'selection_download') $trailCounts['downloads'] += count($trailItem['photo_ids']);
+                                                    elseif (in_array($trailItem['type'], ['basket_add', 'basket_remove'], true)) $trailCounts['basket'] += $trailItem['actions'];
+                                                }
+                                                $trailMetrics = [
+                                                    ['count' => $trailCounts['views'], 'label' => formatCountLabel($trailCounts['views'], 'one_view', 'views_count', '%d view', '%d views'), 'icon' => '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>'],
+                                                    ['count' => $trailCounts['downloads'], 'label' => formatCountLabel($trailCounts['downloads'], 'one_photo_downloaded', 'photos_downloaded_count', '%d photo downloaded', '%d photos downloaded'), 'icon' => '<path d="M12 3v12m-4-4 4 4 4-4M5 17v4h14v-4"/>'],
+                                                    ['count' => $trailCounts['basket'], 'label' => formatCountLabel($trailCounts['basket'], 'one_basket_action', 'basket_actions_count', '%d basket action', '%d basket actions'), 'icon' => '<path d="m8 3-4 6m12-6 4 6M2 9h20l-3 12H5L2 9Zm7 4v4m6-4v4"/>']
+                                                ];
                                                 ?>
-                                                <<?= $rankingTag ?> class="visit-highlight-photo"<?php if ($directInspector): ?> type="button" data-visit-ranking-inspector data-photo-id="<?= h($photo['photo_id']) ?>" data-visit-id="<?= (int)$visit['visit_id'] ?>" aria-haspopup="dialog" aria-label="<?= h('Open Full Inspector for ' . $rankingTitle . ' in this Visit') ?>"<?php endif; ?>>
-                                                    <?php if (isset($visitImages[$photo['photo_id']])): ?>
-                                                        <img class="visit-highlight-image" src="<?= h($visitImages[$photo['photo_id']]) ?>" alt="" loading="lazy">
-                                                    <?php else: ?>
-                                                        <span class="visit-highlight-image visit-image-placeholder" role="img" aria-label="<?= ioa_t('no_preview') ?>">&ndash;</span>
-                                                    <?php endif; ?>
-                                                    <<?= $captionTag ?> class="visit-highlight-caption visit-highlight-caption--ranking">
-                                                        <?php if ($group === 'basket'): ?>
-                                                            <?php
-                                                            $basketActionLabel = ioa_translate($photo['event_type'] === 'basket_add' ? 'basket_action_added' : 'basket_action_removed');
-                                                            ?>
-                                                            <span class="ranking-primary visit-highlight-basket-action">
-                                                                <span><?= h($basketActionLabel) ?></span>
+                                                <button type="button" data-trail-stop id="trail-stop-<?= (int)$visit['visit_id'] ?>-<?= (int)$sectionIndex ?>" aria-controls="trail-segment-<?= (int)$visit['visit_id'] ?>-<?= (int)$sectionIndex ?>" aria-pressed="<?= $sectionIndex === 0 ? 'true' : 'false' ?>" title="<?= h($section['title'] ?? ioa_translate('activity_context_unknown')) ?>">
+                                                    <span class="activity-trail__name"><?= h($section['title'] ?? ioa_translate('activity_context_unknown')) ?></span>
+                                                    <span class="activity-trail__metrics">
+                                                        <?php foreach ($trailMetrics as $metric): ?>
+                                                            <?php if ($metric['count'] <= 0) continue; ?>
+                                                            <span class="activity-trail__metric" title="<?= h($metric['label']) ?>">
+                                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><?= $metric['icon'] ?></svg>
+                                                                <span aria-hidden="true"><?= (int)$metric['count'] ?></span><span class="visit-summary__accessible"><?= h($metric['label']) ?></span>
                                                             </span>
-                                                        <?php endif; ?>
-                                                        <?php if ($group !== 'basket'): ?>
-                                                            <?php
-                                                            $highlightMetricLabel = $group === 'views'
-                                                                ? formatCountLabel($photo['views'], 'one_view', 'views_count', '%d view', '%d views')
-                                                                : formatCountLabel($photo['downloads'], 'one_download', 'downloads_count', '%d download', '%d downloads');
-                                                            ?>
-                                                            <span class="ranking-primary" title="<?= h($highlightMetricLabel) ?>">
-                                                                <span aria-hidden="true"><?= (int)$photo[$group] ?></span>
-                                                                <span class="ranking-primary__accessible"><?= h($highlightMetricLabel) ?></span>
-                                                            </span>
-                                                        <?php endif; ?>
-                                                        <<?= $captionTag ?> class="visit-highlight-title"><?= h($rankingTitle) ?></<?= $captionTag ?>>
-                                                    </<?= $captionTag ?>>
-                                                </<?= $rankingTag ?>>
+                                                        <?php endforeach; ?>
+                                                    </span>
+                                                </button>
                                             <?php endforeach; ?>
-
-                                        </section>
-                                    <?php endforeach; ?>
-                                </div>
-                                <details class="visit-journey">
-                                    <summary><?= ioa_t('show_activity') ?></summary>
+                                        </div>
+                                        <button class="activity-trail-scroll" type="button" data-trail-scroll="1" aria-label="Scroll activity timeline right" title="Later stops" hidden><span aria-hidden="true">›</span></button>
+                                        </div>
+                                    <?php endif; ?>
                                 <div class="visit-timeline visit-activity-summary">
-                                    <?php foreach ($visit['context_sections'] as $section): ?>
-                                        <section class="visit-context-section">
+                                    <?php foreach ($visit['context_sections'] as $sectionIndex => $section): ?>
+                                        <section class="visit-context-section" id="trail-segment-<?= (int)$visit['visit_id'] ?>-<?= (int)$sectionIndex ?>" data-activity-segment<?php if (count($visit['context_sections']) > 1): ?> aria-labelledby="trail-stop-<?= (int)$visit['visit_id'] ?>-<?= (int)$sectionIndex ?>"<?php endif; ?>>
                                             <h3 class="visit-context-section__title"><?= h($section['title'] ?? ioa_translate('activity_context_unknown')) ?></h3>
                                             <div class="visit-timeline__meta">
                                                 <?= h(formatActivityRange($section['first_activity'], $section['latest_activity'])) ?>
@@ -3202,7 +3216,7 @@ try {
                                         </section>
                                     <?php endforeach; ?>
                                 </div>
-                                </details>
+                                </div>
                                 <?php endif; ?>
                             </<?= $visitTag ?>>
                         <?php endforeach; ?>
