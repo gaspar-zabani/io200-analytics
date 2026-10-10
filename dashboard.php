@@ -312,7 +312,8 @@ $allowedPeriods = [
     '7'   => ioa_translate('period_7_days'),
     '30'  => ioa_translate('period_30_days'),
     '90'  => ioa_translate('period_90_days'),
-    'all' => ioa_translate('period_all_time')
+    'all' => ioa_translate('period_all_time'),
+    'checkpoint' => 'Checkpoint'
 ];
 
 if (!array_key_exists($period, $allowedPeriods)) {
@@ -333,21 +334,6 @@ $whereAdmin = ioaActivityWhere($activity);
 unset($_GET['include_admin']);
 $_GET['activity'] = $activity;
 
-$whereDate = '';
-
-if ($period === 'today') {
-    $whereDate = "
-        AND created_at >= CURDATE()
-        AND created_at <= NOW()
-    ";
-} elseif ($period !== 'all') {
-    $days = (int)$period;
-
-    $whereDate = "
-        AND created_at >= DATE_SUB(NOW(), INTERVAL {$days} DAY)
-    ";
-}
-
 // --------------------------------------------------
 // Database
 // --------------------------------------------------
@@ -362,6 +348,70 @@ try {
     );
 
     $mysqli->set_charset('utf8mb4');
+
+    require_once __DIR__ . '/checkpoints.php';
+    require_once __DIR__ . '/reporting-range.php';
+    $checkpointSelectionExplicit = array_key_exists('checkpoint', $_GET);
+    $checkpoints = [];
+    $statisticsStart = null;
+    $checkpointReady = true;
+    $checkpointError = null;
+    $checkpointCsrf = '';
+    if (!isset($_GET['photo_inspector']) && !isset($_GET['photo_search'])) {
+        session_name('ioa_dashboard');
+        if (!session_start(['cookie_httponly' => true, 'cookie_samesite' => 'Strict',
+            'cookie_secure' => parse_url(WEBSITE_URL, PHP_URL_SCHEME) === 'https', 'use_strict_mode' => true])) {
+            throw new RuntimeException('Dashboard session unavailable');
+        }
+        $_SESSION['ioa_checkpoint_csrf'] ??= bin2hex(random_bytes(32));
+        $checkpointCsrf = $_SESSION['ioa_checkpoint_csrf'];
+        session_write_close();
+    }
+    try {
+        [$checkpoints, $statisticsStart] = ioaCheckpointState($mysqli);
+    } catch (mysqli_sql_exception $e) {
+        if ($e->getCode() !== 1146) throw $e;
+        $checkpointReady = false;
+        $checkpointError = 'Open the installer to enable Checkpoints. Existing statistics are preserved.';
+    }
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        try {
+            $csrf = $_POST['checkpoint_csrf'] ?? null;
+            if (!$checkpointReady || $checkpointCsrf === '' || !is_string($csrf) || !hash_equals($checkpointCsrf, $csrf)) {
+                throw new InvalidArgumentException('Invalid request. Reload the dashboard and try again.');
+            }
+            ioaCheckpointMutation($mysqli, $_POST);
+            $query = ['period' => $period, 'activity' => $activity, 'photo_tab' => $photoTab,
+                'checkpoint' => $_GET['checkpoint'] ?? 'latest'];
+            if (($_POST['checkpoint_action'] ?? '') === 'create') {
+                $query['period'] = 'checkpoint';
+                $query['checkpoint'] = 'latest';
+            }
+            header('Location: ?' . http_build_query($query), true, 303);
+            exit;
+        } catch (InvalidArgumentException $e) {
+            http_response_code(400);
+            $checkpointError = $e->getMessage();
+        } catch (Throwable $e) {
+            http_response_code(500);
+            $checkpointError = 'Checkpoint changes could not be saved. Reload and try again.';
+        }
+    }
+    $checkpointSelection = ioaCheckpointSelection($_GET['checkpoint'] ?? 'latest', $checkpoints);
+    $_GET['checkpoint'] = $checkpointSelection;
+    $clock = $mysqli->query("SELECT CURRENT_TIMESTAMP AS now, CURRENT_DATE AS today,
+        DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 7 DAY) AS `7`,
+        DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 30 DAY) AS `30`,
+        DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 90 DAY) AS `90`")->fetch_assoc();
+    $range = ioaReportingRange($period, $checkpointSelection, $checkpoints, $statisticsStart, $clock);
+    $whereDate = ioaReportingWhere($mysqli, $range);
+    $reportingLabel = $allowedPeriods[$period];
+    if ($period === 'checkpoint' && $range['checkpoint']) $reportingLabel = $range['checkpoint']['name'];
+    // The baseline stays silent except when a pinned checkpoint starts earlier.
+    if ($period === 'checkpoint' && $checkpointSelection !== 'latest' && $range['constrained']) {
+        $reportingLabel .= ' · Reporting from ' . $statisticsStart['created_at'];
+    }
+    if ($range['empty']) $reportingLabel = 'Checkpoint · No checkpoints saved';
 
     if (isset($_GET['photo_inspector'])) {
         require __DIR__ . '/photo-inspector.php';
@@ -501,6 +551,16 @@ try {
     $selectedSessionVisits = [];
     $selectedSessionFound = false;
     $sessionVisitId = filter_input(INPUT_GET, 'session_visit', FILTER_VALIDATE_INT) ?: 0;
+    // A bookmarked contextual Session must remain available even with no in-range activity.
+    if ($sessionVisitId > 0) {
+        $stmt = $mysqli->prepare("SELECT session_id FROM ioa_events WHERE id = ? {$whereAdmin}");
+        $stmt->bind_param('i', $sessionVisitId);
+        $stmt->execute();
+        $stmt->bind_result($contextSessionId);
+        if ($stmt->fetch() && is_string($contextSessionId) && $contextSessionId !== '') $candidateSessionIds[$contextSessionId] = true;
+        $stmt->close();
+    }
+
 
     if ($candidateSessionIds) {
         $escapedSessionIds = array_map(
@@ -581,6 +641,7 @@ try {
                     isset($qualifyingEventIds[(string)$row['id']]);
                 $currentVisit['events'][] = $event;
             }
+            $currentVisit['before_reporting_start'] = $range['start'] !== null && $currentVisit['latest_activity'] < $range['start'];
             if ($sessionVisitId > 0) {
                 if ($sessionEpisodes && $sessionEpisodes[0]['session_id'] !== $currentVisit['session_id']) {
                     if ($selectedSessionFound) $selectedSessionVisits = $sessionEpisodes;
@@ -1366,6 +1427,50 @@ try {
             display: none;
         }
 
+        .mobile-filter-toolbar { display: none; }
+        .mobile-filter-toolbar label { display: flex; flex-direction: column; gap: 5px; min-width: 0; color: #6e7177; font-size: 12px; }
+        .mobile-filter-toolbar select, .mobile-checkpoint-actions button { font: inherit; font-size: 13px; min-height: 40px; padding: 8px 9px; border: 1px solid #dedfe2; border-radius: 6px; background: white; color: #333; min-width: 0; width: 100%; }
+        .mobile-checkpoint-controls { grid-column: 1 / -1; min-width: 0; }
+        .mobile-checkpoint-row { display: flex; gap: 6px; margin-top: 5px; }
+        .mobile-checkpoint-row select { flex: 1; width: 0; text-overflow: ellipsis; }
+        .mobile-checkpoint-actions { display: flex; flex-shrink: 0; gap: 6px; }
+        .mobile-checkpoint-actions button { width: 40px; cursor: pointer; }
+        .checkpoint-split { position: relative; display: inline-flex; align-items: stretch; }
+        .checkpoint-split > .filter { border-radius: 6px 0 0 6px; white-space: nowrap; }
+        .checkpoint-toggle { border: 1px solid #dedfe2; border-left: 0; border-radius: 0 6px 6px 0; background: white; color: #555; padding: 0 9px; cursor: pointer; }
+        .checkpoint-toggle[aria-expanded="true"] { background: #e9eaed; }
+        .checkpoint-menu { position: absolute; z-index: 30; top: calc(100% + 6px); right: 0; width: 300px; max-width: calc(100vw - 24px); background: white; border: 1px solid #dedfe2; border-radius: 8px; box-shadow: 0 8px 24px #0002; padding: 6px; }
+        .checkpoint-menu[hidden] { display: none; }
+        .checkpoint-menu-actions { display: flex; gap: 6px; padding: 3px 3px 8px; border-bottom: 1px solid #eceef0; }
+        .checkpoint-menu button { font: inherit; font-size: 13px; border: 0; border-radius: 4px; padding: 6px 9px; background: #f4f5f7; cursor: pointer; }
+        .checkpoint-menu-list { max-height: min(260px, 40vh); overflow-y: auto; padding-top: 4px; }
+        .checkpoint-choice { display: flex; align-items: center; gap: 6px; padding: 8px; border-radius: 4px; text-decoration: none; color: #333; font-size: 13px; }
+        .checkpoint-choice span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+        .checkpoint-choice[aria-current="true"] { background: #f0f1f2; font-weight: 600; }
+        .checkpoint-choice[aria-current="true"]::before { content: '✓'; flex: none; }
+        .checkpoint-choice:hover, .checkpoint-menu button:hover { background: #e9eaed; }
+        .checkpoint-menu-empty { font-size: 12px; padding: 4px 8px; color: #6e7177; }
+        .checkpoint-context, .checkpoint-error { color: #6e7177; font-size: 12px; }
+        .reporting-period { display: inline-block; max-width: min(320px, 55vw); vertical-align: bottom; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .photo-inspector-period { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .checkpoint-manager { border: 1px solid #dedfe2; border-radius: 10px; padding: 0; width: min(480px, calc(100% - 24px)); max-height: 85vh; overflow-y: auto; font-size: 13px; color: #333; }
+        .checkpoint-manager::backdrop { background: #0005; }
+        .checkpoint-manager-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid #eceef0; }
+        .checkpoint-manager-header h2 { margin: 0; font-size: 18px; }
+        .checkpoint-manager-section { padding: 16px 20px; border-bottom: 1px solid #eceef0; }
+        .checkpoint-manager-section:last-child { border-bottom: 0; }
+        .checkpoint-manager h3 { margin: 0 0 10px; font-size: 14px; font-weight: 600; }
+        .checkpoint-manager p { margin: 8px 0 0; color: #6e7177; font-size: 12px; line-height: 1.5; }
+        .checkpoint-manager form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+        .checkpoint-manager input:not([type="checkbox"]), .checkpoint-manager select { min-width: 0; max-width: 100%; font: inherit; padding: 8px 9px; border: 1px solid #dedfe2; border-radius: 5px; background: white; color: #333; }
+        .checkpoint-manager input:not([type="checkbox"]) { flex: 1; }
+        .checkpoint-manager button { font: inherit; padding: 8px 10px; border: 1px solid #dedfe2; border-radius: 5px; background: white; color: #333; cursor: pointer; }
+        .checkpoint-manager .checkpoint-primary { background: #202124; color: white; border-color: #202124; }
+        .checkpoint-manager .checkpoint-close { border: 0; padding: 4px 7px; font-size: 20px; }
+        .checkpoint-saved { padding: 12px 0; border-bottom: 1px solid #eceef0; }
+        .checkpoint-saved:last-child { border: 0; padding-bottom: 0; }
+        .checkpoint-manager time { display: block; margin-bottom: 8px; color: #6e7177; font-size: 12px; }
+        .checkpoint-delete { margin-top: 8px; font-size: 12px; color: #6e7177; }
         .dashboard-filter-groups { max-width: 100%; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
         .activity-filter .filter { padding: 5px 9px; border: 0; border-radius: 4px; font-size: 13px; }
         .activity-filter { display: flex; gap: 2px; padding: 3px; border-radius: 6px; background: #f0f1f2; }
@@ -2427,12 +2532,22 @@ try {
         html [tabindex]:not(:is(a[href], button, input, select, textarea, summary, [role="button"], [role="link"], [role="tab"], .photo-search-metric-detail)):focus { outline: none; }
         html :is(.photo-inspector-modal, .photo-search input):focus { outline: none; }
         html summary:focus, html[data-ioa-input] summary:focus { outline-offset: -2px; }
+        @media (max-width: 650px) {
+            .activity-filter, .filters > a.filter, .filters > .checkpoint-split { display: none !important; }
+            .mobile-filter-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; width: 100%; }
+            .topbar { gap: 10px; margin-bottom: 16px; }
+            .topbar h1 { font-size: 26px; }
+            .topbar .subtitle { font-size: 12px; }
+            .dashboard-filter-groups { gap: 6px; justify-content: flex-end; width: 100%; }
+            .filters { display: contents; }
+            .checkpoint-manager-section { padding: 14px 16px; }
+        }
     </style>
 
 <script src="assets/dashboard-focus.js" defer></script>
 </head>
 
-<body data-inspector-period="<?= h($allowedPeriods[$period]) ?>" data-inspector-today="<?= h((new DateTimeImmutable('today'))->format('Y-m-d')) ?>">
+<body data-inspector-period="<?= h($reportingLabel) ?>" data-inspector-today="<?= h((new DateTimeImmutable('today'))->format('Y-m-d')) ?>">
 
 <div class="dashboard">
 
@@ -2453,7 +2568,7 @@ try {
 
         <div>
 
-            <h1><a class="dashboard-home" href="?activity=<?= h($activity) ?>"><?= ioa_t('app_name') ?></a></h1>
+            <h1><a class="dashboard-home" href="?<?= h(http_build_query(['activity' => $activity, 'checkpoint' => $checkpointSelection])) ?>"><?= ioa_t('app_name') ?></a></h1>
 
             <p class="subtitle">
                 <?= ioa_t('dashboard_subtitle') ?>
@@ -2466,21 +2581,55 @@ try {
         <?php endif; ?>
 
         <div class="dashboard-filter-groups">
+        <div class="mobile-filter-toolbar">
+        <label><span>Activity</span>
+            <select data-activity-select aria-label="Activity">
+                <?php foreach (['visits' => 'Visits', 'all' => 'Visits + admin', 'admin' => 'Admin'] as $mode => $label): ?>
+                    <option value="<?= h($mode) ?>" data-activity-url="?<?= h(http_build_query(['period' => $period, 'activity' => $mode, 'checkpoint' => $checkpointSelection, 'photo_tab' => $photoTab])) ?>" <?= $activity === $mode ? 'selected' : '' ?>><?= h($label) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </label>
+        <label><span>Period</span>
+            <select data-period-select>
+                <?php foreach ($allowedPeriods as $value => $label): ?>
+                    <option value="<?= h($value) ?>" data-filter-url="?<?= h(http_build_query(['period' => $value, 'activity' => $activity, 'checkpoint' => $checkpointSelection, 'photo_tab' => $photoTab])) ?>" <?= $period === (string)$value ? 'selected' : '' ?>><?= h($label) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </label>
+        <div class="mobile-checkpoint-controls" <?= $period !== 'checkpoint' ? 'hidden' : '' ?>>
+            <label for="mobile-checkpoint-select">Checkpoint</label>
+            <div class="mobile-checkpoint-row">
+                <select id="mobile-checkpoint-select" data-checkpoint-select title="<?= h($checkpointSelection === 'latest' ? 'Latest checkpoint' : ($range['checkpoint']['name'] ?? 'Latest checkpoint')) ?>">
+                    <option value="latest" data-filter-url="?<?= h(http_build_query(['period' => 'checkpoint', 'activity' => $activity, 'checkpoint' => 'latest', 'photo_tab' => $photoTab])) ?>" <?= $checkpointSelection === 'latest' ? 'selected' : '' ?>>Latest checkpoint</option>
+                    <?php foreach ($checkpoints as $checkpoint): ?>
+                        <option value="<?= h($checkpoint['id']) ?>" data-filter-url="?<?= h(http_build_query(['period' => 'checkpoint', 'activity' => $activity, 'checkpoint' => $checkpoint['id'], 'photo_tab' => $photoTab])) ?>" <?= $checkpointSelection === (string)$checkpoint['id'] ? 'selected' : '' ?>><?= h($checkpoint['name']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            <?php if ($checkpointReady): ?>
+                <div class="mobile-checkpoint-actions">
+                    <button type="button" data-checkpoint-open="create" aria-label="Create checkpoint" title="Create checkpoint">＋</button>
+                    <button type="button" data-checkpoint-open="manage" aria-label="Manage checkpoints" title="Manage checkpoints">✎</button>
+                </div>
+            <?php endif; ?>
+            </div>
+        </div>
+        </div>
         <div class="activity-filter" role="group" aria-label="Activity">
             <?php foreach (['visits' => 'Visits', 'all' => 'Visits + admin', 'admin' => 'Admin'] as $mode => $label): ?>
                 <a class="filter <?= $activity === $mode ? 'active' : '' ?>" aria-current="<?= $activity === $mode ? 'true' : 'false' ?>"
-                   href="?<?= h(http_build_query(['period' => $period, 'activity' => $mode, 'photo_tab' => $photoTab])) ?>"><?= h($label) ?></a>
+                   href="?<?= h(http_build_query(['period' => $period, 'activity' => $mode, 'checkpoint' => $checkpointSelection, 'photo_tab' => $photoTab])) ?>"><?= h($label) ?></a>
             <?php endforeach; ?>
         </div>
         <div class="filters">
 
             <?php foreach ($allowedPeriods as $value => $label): ?>
+                <?php if ($value === 'checkpoint') continue; ?>
 
                 <a
                     class="filter <?= $period === (string)$value ? 'active' : '' ?>"
                     href="?<?= h(http_build_query([
                         'period' => $value,
-                        'activity' => $activity,
+                        'activity' => $activity, 'checkpoint' => $checkpointSelection,
                         'photo_tab' => $photoTab
                     ])) ?>"
                 >
@@ -2488,12 +2637,14 @@ try {
                 </a>
 
             <?php endforeach; ?>
+            <?php require __DIR__ . '/checkpoint-controls.php'; ?>
 
         </div>
 
     </div>
 
     </div>
+    <?php if ($checkpointError): ?><p class="checkpoint-error" role="alert"><?= h($checkpointError) ?><?php if (!$checkpointReady): ?> <a href="install.php">Open installer</a><?php endif; ?></p><?php endif; ?>
 
     <div class="summary-grid">
 
@@ -2572,7 +2723,7 @@ try {
                 id="photo-tab-visits"
                 href="?<?= h(http_build_query([
                     'period' => $period,
-                    'activity' => $activity,
+                    'activity' => $activity, 'checkpoint' => $checkpointSelection,
                     'photo_tab' => 'visits'
                 ])) ?>"
                 role="tab"
@@ -2605,7 +2756,7 @@ try {
                 id="photo-tab-views"
                 href="?<?= h(http_build_query([
                     'period' => $period,
-                    'activity' => $activity,
+                    'activity' => $activity, 'checkpoint' => $checkpointSelection,
                     'photo_tab' => 'views'
                 ])) ?>"
                 role="tab"
@@ -2644,7 +2795,7 @@ try {
                 id="photo-tab-downloads"
                 href="?<?= h(http_build_query([
                     'period' => $period,
-                    'activity' => $activity,
+                    'activity' => $activity, 'checkpoint' => $checkpointSelection,
                     'photo_tab' => 'downloads'
                 ])) ?>"
                 role="tab"
@@ -2694,7 +2845,7 @@ try {
                 <div class="panel-header">
                     <h2><?= ioa_t('most_viewed_images') ?></h2>
                     <span class="panel-hint">
-                        <?= ioa_t('top_20') ?> · <?= h($allowedPeriods[$period]) ?>
+                        <?= ioa_t('top_20') ?> · <span class="reporting-period" title="<?= h($reportingLabel) ?>"><?= h($reportingLabel) ?></span>
                     </span>
                 </div>
 
@@ -2777,7 +2928,7 @@ try {
                 <div class="panel-header">
                     <h2><?= ioa_t('most_downloaded_images') ?></h2>
                     <span class="panel-hint">
-                        <?= ioa_t('top_20') ?> · <?= h($allowedPeriods[$period]) ?>
+                        <?= ioa_t('top_20') ?> · <span class="reporting-period" title="<?= h($reportingLabel) ?>"><?= h($reportingLabel) ?></span>
                     </span>
                 </div>
 
@@ -2842,7 +2993,7 @@ try {
                 <div class="panel-header<?= $sessionMode ? ' session-mode-header' : '' ?>">
                     <h2><?= $sessionMode ? count($recentVisits) . (count($recentVisits) === 1 ? ' Session visit' : ' Session visits') : ioa_t('latest_visits') ?></h2>
                     <span class="panel-hint<?= $sessionMode ? ' session-mode-actions' : '' ?>">
-                        <?php if ($sessionMode): ?><button type="button" class="session-show-all" data-session-clear-url="<?= h($sessionUrl()) ?>">Show all visits</button><?php else: ?><?= ioa_t('latest_20') ?> · <?= h($allowedPeriods[$period]) ?><?php endif; ?>
+                        <?php if ($sessionMode): ?><button type="button" class="session-show-all" data-session-clear-url="<?= h($sessionUrl()) ?>">Show all visits</button><?php else: ?><?= ioa_t('latest_20') ?> · <span class="reporting-period" title="<?= h($reportingLabel) ?>"><?= h($reportingLabel) ?></span><?php endif; ?>
                     </span>
                 </div>
 
@@ -2898,6 +3049,9 @@ try {
                                             <?php endforeach; ?>
                                         </span>
                                         <span class="visit-summary__identity">
+                                            <?php if ($sessionMode && !empty($visit['before_reporting_start'])): ?>
+                                                <span class="checkpoint-context">Before <?= h($range['start_reason'] === 'statistics start' ? 'reporting start' : $range['start_reason']) ?> · Context only</span>
+                                            <?php endif; ?>
                                             <time class="visit-summary__time" datetime="<?= h($visit['latest_activity']) ?>">
                                                 <?= h($visit['formatted_latest_activity']) ?>
                                             </time>
@@ -3095,6 +3249,19 @@ try {
 <script>
     // Keep AJAX handlers on the canonical activity mode, including legacy URLs.
     const activityUrl = new URL(window.location.href);
+    const checkpointPreferenceKey = 'ioa_checkpoint:' + location.origin + location.pathname;
+    try {
+        if (!<?= json_encode($checkpointSelectionExplicit) ?>) {
+            const saved = localStorage.getItem(checkpointPreferenceKey);
+            if (saved && saved !== <?= json_encode($checkpointSelection) ?>) {
+                activityUrl.searchParams.set('checkpoint', saved);
+                location.replace(activityUrl.href);
+            }
+        } else {
+            localStorage.setItem(checkpointPreferenceKey, <?= json_encode($checkpointSelection) ?>);
+        }
+    } catch (error) { /* URL navigation still works when storage is blocked. */ }
+    activityUrl.searchParams.set('checkpoint', <?= json_encode($checkpointSelection) ?>);
     activityUrl.searchParams.delete('include_admin');
     activityUrl.searchParams.set('activity', <?= json_encode($activity) ?>);
     window.history.replaceState(window.history.state, '', activityUrl);
@@ -3128,10 +3295,16 @@ try {
                 panel.hidden = panel.dataset.photoPanel !== tabName;
             });
 
-            document.querySelectorAll('.filters a.filter, .activity-filter a.filter').forEach(function (link) {
+            document.querySelectorAll('.filters a.filter, .activity-filter a.filter, [data-checkpoint-choice]').forEach(function (link) {
                 const url = new URL(link.href);
                 url.searchParams.set('photo_tab', tabName);
                 link.href = url.href;
+            });
+            document.querySelectorAll('.mobile-filter-toolbar option').forEach(function (option) {
+                const key = option.dataset.filterUrl ? 'filterUrl' : 'activityUrl';
+                const url = new URL(option.dataset[key], window.location.href);
+                url.searchParams.set('photo_tab', tabName);
+                option.dataset[key] = url.href;
             });
 
             if (updateUrl) {

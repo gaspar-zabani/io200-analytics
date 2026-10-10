@@ -77,9 +77,22 @@ The collector requires JSON POST requests from the origin configured in IO200's 
 
 The activity selector offers Visits (non-admin events, the default), Visits + admin (all events), and Only admin. Existing `include_admin=1` links select all events when `activity` is absent. Historical flags retain their original values.
 
+## Checkpoints and Statistics start
+
+Open the authenticated installer and apply its offered upgrade to add `ioa_checkpoints` and `ioa_statistics_start`. Existing events are preserved; opening the dashboard does not create tables.
+
+Create checkpoint saves a name and the database server's current timestamp, then activates Checkpoint → Latest checkpoint. Timestamps cannot be edited or backdated. Manage checkpoints allows renaming and deliberately confirmed deletion. Duplicate names are allowed; timestamps distinguish them. Latest checkpoint resolves dynamically; selecting a saved checkpoint pins its ID. URLs preserve the choice, with an installation-scoped localStorage preference as a browser-local fallback. Explicit URLs take precedence. Empty checkpoint lists show no checkpoint-period statistics.
+
+Statistics start is a separate server-persisted preference shared across devices. Set it to a saved checkpoint to restrict normal reporting to that timestamp or later. Restore All recorded history to reverse it. Deleting its checkpoint automatically clears the preference. Event records are never changed by these operations. The baseline stays silent in ordinary period labels; a discreet indication appears when a pinned checkpoint is earlier than Statistics start.
+
+Aggregate statistics and Overall Photo Inspector use the inclusive effective start/end range. Visit details retain complete qualifying episodes. Session visits retain all sibling episodes, with earlier rows marked as contextual activity. Find photo and Latest viewed photo remain independent of the reporting period; historical search results may have no activity within the selected range.
+
+Checkpoints and reporting bounds use database `CURRENT_TIMESTAMP`, matching existing event `DATETIME` values. IOA does not introduce UTC conversion or change the connection timezone. This assumes dashboard and collection connections use the same database timezone. Local timestamps cannot disambiguate repeated clock times during daylight-saving transitions, or reliably repair historical timezone changes; second precision cannot strictly order events around checkpoint creation within the same second. Refreshing resolves newly created/deleted checkpoints and server preferences; separate requests using Latest may resolve to a newer checkpoint.
+
 ## Privacy limitations
 
 - IOA does not store IP addresses, user agents, names, email addresses, fingerprints, authentication cookies, or persistent visitor IDs. It reads the existing IO200 refresh cookie only to classify activity; it never renews authentication during collection.
+- Dashboard preferences include named checkpoint timestamps, a Statistics start checkpoint reference, and a browser-local remembered checkpoint selection.
 - It does collect event types, timestamps, paths, photo IDs, image/download URLs, per-tab session IDs, batch photo data, and a server-derived admin traffic flag.
 - Data remains in the site's `ioa_events` table and is not transmitted to an external analytics provider by this code.
 - IOA has no consent management, retention schedule, anonymization, or automatic expiry.
@@ -91,11 +104,11 @@ Site operators are responsible for their privacy notice and applicable legal req
 ## Uninstallation
 
 1. While signed in, open `/storage/custom/io200-analytics/uninstall.php`.
-2. Keep `ioa_events` for a future installation or permanently delete it by typing `DELETE`.
+2. Keep events, checkpoints and Statistics start for a future installation or permanently delete it by typing `DELETE`.
 3. Remove the IOA script tag from **IO200 Admin → Settings → Code Injection**.
 4. Delete `/storage/custom/io200-analytics/`.
 
-Only the explicitly owned `ioa_events` table can be dropped. The uninstaller does not remove its own files, edit Code Injection, or modify IO200 core data.
+Only the explicitly owned IOA event, checkpoint, and statistics-start tables can be dropped. Keeping data preserves all three. The uninstaller does not remove its own files, edit Code Injection, or modify IO200 core data.
 
 ## Feedback / bug reports
 
@@ -120,6 +133,9 @@ The folder inside always remains `io200-analytics/`.
 ```text
 io200-analytics/
 ├── analytics.js
+├── checkpoints.php
+├── checkpoint-controls.php
+├── reporting-range.php
 ├── collect.php
 ├── dashboard.php
 ├── install.php
@@ -130,6 +146,7 @@ io200-analytics/
 ├── lang/
 │   └── en.php
 ├── assets/
+│   ├── checkpoints.js
 │   └── dashboard-preview.png
 ├── README.md
 └── LICENSE

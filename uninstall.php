@@ -110,8 +110,9 @@ if ($authenticated) {
         $dbConnected = true;
 
         if ($deleteRequested) {
-            // Explicit allowlist: ioa_events is currently the only table
-            // created and owned by IO200 Analytics.
+            // Explicit allowlist: only IOA-owned tables are removed; dependent preferences go first.
+            $mysqli->query('DROP TABLE IF EXISTS `ioa_statistics_start`');
+            $mysqli->query('DROP TABLE IF EXISTS `ioa_checkpoints`');
             $mysqli->query('DROP TABLE IF EXISTS `ioa_events`');
 
             $dataDeleted = true;
@@ -122,7 +123,7 @@ if ($authenticated) {
                 SELECT COUNT(*)
                 FROM information_schema.tables
                 WHERE table_schema = DATABASE()
-                  AND table_name = 'ioa_events'
+                  AND table_name IN ('ioa_events', 'ioa_checkpoints', 'ioa_statistics_start')
             ");
             $row = $result->fetch_row();
             $tableExists = (int)($row[0] ?? 0) > 0;
@@ -525,7 +526,7 @@ if ($authenticated) {
                     <div class="success" role="status">
                         <h2>Analytics data has been deleted</h2>
                         <p>
-                            The <code>ioa_events</code> table has been removed.
+                            The IOA event, checkpoint and statistics-start tables have been removed.
                             No IO200 core tables or files were changed.
                         </p>
                     </div>
@@ -556,7 +557,7 @@ if ($authenticated) {
                                 IO200 Code Injection
                             </li>
                             <li>
-                                Analytics table <code>ioa_events</code>
+                                IOA tables: <code>ioa_events</code>, <code>ioa_checkpoints</code>, <code>ioa_statistics_start</code>
                             </li>
                         </ul>
                     </div>
@@ -564,8 +565,7 @@ if ($authenticated) {
                     <section class="option">
                         <h2>1. Keep analytics data</h2>
                         <p>
-                            The database is not changed. History in
-                            <code>ioa_events</code> can be reused if IO200
+                            The database is not changed. Events, checkpoints and Statistics start can be reused if IO200
                             Analytics is installed again later.
                         </p>
                         <p>
@@ -578,13 +578,13 @@ if ($authenticated) {
                     <section class="option danger">
                         <h2>2. Permanently delete analytics data</h2>
                         <p class="warning">
-                            This permanently deletes all collected IO200
+                            This permanently deletes checkpoints, statistics-start preferences and all collected IO200
                             Analytics data and cannot be undone.
                         </p>
 
                         <?php if ($dbConnected && $tableExists): ?>
                             <p>
-                                Only the <code>ioa_events</code> table is removed.
+                                Only IOA-owned events, checkpoints and statistics-start preferences are removed.
                                 IO200 core tables are not affected.
                             </p>
 
@@ -626,7 +626,7 @@ if ($authenticated) {
                             </form>
                         <?php elseif ($dbConnected): ?>
                             <p>
-                                The <code>ioa_events</code> table does not exist.
+                                No IOA-owned data tables exist.
                                 No analytics data needs to be removed.
                             </p>
 

@@ -242,11 +242,18 @@ if ($authenticated) {
             if (!$lockHeld) throw new RuntimeException('Another setup is running. Try again shortly.');
         }
         $schema = ioaInspectSchema($mysqli);
+        require_once __DIR__ . '/checkpoints.php';
+        $checkpointSchema = ioaInspectCheckpointSchema($mysqli);
+        $schema['operations'] = array_merge($schema['operations'], $checkpointSchema['operations']);
+        $schema['issues'] = array_merge($schema['issues'], $checkpointSchema['issues']);
         if ($schema['issues']) throw new RuntimeException(implode("\n", $schema['issues']));
         if ($isPost && $schema['operations']) {
             $wasInstalled = $schema['exists'];
             foreach ($schema['operations'] as $sql) $mysqli->query($sql);
             $schema = ioaInspectSchema($mysqli);
+            $checkpointSchema = ioaInspectCheckpointSchema($mysqli);
+            $schema['operations'] = array_merge($schema['operations'], $checkpointSchema['operations']);
+            $schema['issues'] = array_merge($schema['issues'], $checkpointSchema['issues']);
             if ($schema['issues'] || $schema['operations']) {
                 throw new RuntimeException('Schema verification did not pass after setup. ' . implode(' ', $schema['issues']));
             }

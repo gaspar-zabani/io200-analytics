@@ -122,7 +122,9 @@
         const activeMetrics = metricData(photo.metrics).filter(([, , total]) => total > 0);
         composition.style.setProperty('--photo-metric-tracks', 'repeat(3, minmax(0, 100px))');
         const period = element('div', undefined, 'photo-search-period');
-        period.append(element('span', document.body.dataset.inspectorPeriod || 'Selected period', 'photo-inspector-period'));
+        const periodLabel = element('span', document.body.dataset.inspectorPeriod || 'Selected period', 'photo-inspector-period');
+        periodLabel.title = periodLabel.textContent;
+        period.append(periodLabel);
         if (photo.latest) {
             const clock = element('button', undefined, 'photo-search-latest photo-search-metric-detail');
             clock.type = 'button';
@@ -158,7 +160,9 @@
         inspector.replaceChildren();
         const header = element('div', undefined, 'photo-inspector-header');
         renderIdentity(header, photo, action);
-        header.append(element('span', `${visit ? 'Overall · ' : ''}${(document.body.dataset.inspectorPeriod || 'Selected period').replace(/^Last /i, '')}`, 'photo-inspector-period'));
+        const periodLabel = element('span', `Overall · ${(document.body.dataset.inspectorPeriod || 'Selected period').replace(/^Last /i, '')}`, 'photo-inspector-period');
+        periodLabel.title = periodLabel.textContent;
+        header.append(periodLabel);
         inspector.append(header);
         const grid = element('div', undefined, 'photo-inspector-analysis');
         grid.setAttribute('role', 'table');
@@ -224,6 +228,7 @@
             if (!available) {
                 note(element('p', data.status === 'outside_period' ? 'This visit is outside the selected period.' : 'Visit context unavailable.'));
             } else {
+                if (isVisit && data.range_note) note(element('p', data.range_note));
                 if (isVisit && data.first_activity) {
                     const first = data.first_activity, last = data.latest_activity || first;
                     const time = first.slice(0, 10) === last.slice(0, 10)
@@ -275,6 +280,7 @@
                 ? 'This visit is outside the selected period.' : 'Visit context unavailable.'));
             return;
         }
+        if (visit.range_note) container.append(element('p', visit.range_note, 'checkpoint-context'));
         const m = visit.metrics;
         const metrics = element('div', undefined, 'visit-popover-metrics');
         const addMetric = (icon, text, label, description = '') => {

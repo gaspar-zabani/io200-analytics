@@ -1,7 +1,7 @@
 <?php
 
 // Included only by the authenticated dashboard, with its existing filters/helpers.
-if (!isset($authenticated, $mysqli, $whereAdmin, $whereDate) || $authenticated !== true) {
+if (!isset($authenticated, $mysqli, $whereAdmin, $whereDate, $range) || $authenticated !== true) {
     http_response_code(403);
     exit;
 }
@@ -158,10 +158,11 @@ try {
                     $stmt->close();
                     foreach (ioaSegmentVisits($history) as $episode) {
                         if ($episode['visit_id'] !== $visitId) continue;
-                        if (!array_filter($episode['events'], static function ($event) { return (bool)$event['in_period']; })) {
-                            $context['status'] = 'outside_period';
-                            break;
-                        }
+                        $context['outside_reporting_range'] = !array_filter($episode['events'], static function ($event) { return (bool)$event['in_period']; });
+                        $context['before_reporting_start'] = $range['start'] !== null && $episode['latest_activity'] < $range['start'];
+                        $context['range_note'] = $context['outside_reporting_range']
+                            ? ($context['before_reporting_start'] ? 'Before ' . ($range['start_reason'] === 'statistics start' ? 'reporting start' : $range['start_reason']) . ' · Context only' : 'Outside selected period · Context only')
+                            : null;
                         $context['status'] = 'available';
                         $visitActivity = [];
                         foreach ($episode['events'] as $event) {
