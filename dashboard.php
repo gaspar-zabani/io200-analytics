@@ -1366,9 +1366,9 @@ try {
             display: none;
         }
 
-        .dashboard-filter-groups { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+        .dashboard-filter-groups { max-width: 100%; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
         .activity-filter .filter { padding: 5px 9px; border: 0; border-radius: 4px; font-size: 13px; }
-        .activity-filter { display: flex; gap: 2px; padding: 3px; border: 1px solid #dedfe2; border-radius: 6px; }
+        .activity-filter { display: flex; gap: 2px; padding: 3px; border-radius: 6px; background: #f0f1f2; }
         .filters {
             display: flex;
             flex-wrap: wrap;
@@ -2467,7 +2467,7 @@ try {
 
         <div class="dashboard-filter-groups">
         <div class="activity-filter" role="group" aria-label="Activity">
-            <?php foreach (['visits' => 'Visits', 'all' => 'Visits + admin', 'admin' => 'Only admin'] as $mode => $label): ?>
+            <?php foreach (['visits' => 'Visits', 'all' => 'Visits + admin', 'admin' => 'Admin'] as $mode => $label): ?>
                 <a class="filter <?= $activity === $mode ? 'active' : '' ?>" aria-current="<?= $activity === $mode ? 'true' : 'false' ?>"
                    href="?<?= h(http_build_query(['period' => $period, 'activity' => $mode, 'photo_tab' => $photoTab])) ?>"><?= h($label) ?></a>
             <?php endforeach; ?>
